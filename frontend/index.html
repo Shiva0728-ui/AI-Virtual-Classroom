@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎓 AI Virtual Classroom</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Marked.js for Markdown rendering -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- Highlight.js for code highlighting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
+    
+    <!-- Our CSS -->
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- AUTH PAGES                                             -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div id="auth-page" class="page active">
+            <div class="auth-container">
+                <div class="auth-visual">
+                    <div class="floating-shapes">
+                        <div class="shape shape-1">🐍</div>
+                        <div class="shape shape-2">🤖</div>
+                        <div class="shape shape-3">🧠</div>
+                        <div class="shape shape-4">🌐</div>
+                        <div class="shape shape-5">📊</div>
+                        <div class="shape shape-6">⚡</div>
+                    </div>
+                    <div class="auth-branding">
+                        <div class="auth-logo">🎓</div>
+                        <h1>AI Virtual Classroom</h1>
+                        <p>Learn like you have a personal tutor - interactive, adaptive, and fun!</p>
+                        <div class="auth-features">
+                            <div class="auth-feature"><i class="fas fa-robot"></i> AI-Powered Tutor</div>
+                            <div class="auth-feature"><i class="fas fa-gamepad"></i> Gamified Learning</div>
+                            <div class="auth-feature"><i class="fas fa-chart-line"></i> Track Progress</div>
+                            <div class="auth-feature"><i class="fas fa-microphone"></i> Voice Lessons</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="auth-form-container">
+                    <!-- Login Form -->
+                    <div id="login-form" class="auth-form active">
+                        <h2>Welcome Back! 👋</h2>
+                        <p class="auth-subtitle">Log in to continue learning</p>
+                        
+                        <div class="form-group">
+                            <label><i class="fas fa-user"></i> Username or Email</label>
+                            <input type="text" id="login-username" placeholder="Enter username or email" autocomplete="username">
+                        </div>
+                        <div class="form-group">
+                            <label><i class="fas fa-lock"></i> Password</label>
+                            <input type="password" id="login-password" placeholder="Enter password" autocomplete="current-password">
+                        </div>
+                        
+                        <button id="login-btn" class="btn btn-primary btn-full" onclick="Auth.login()">
+                            <i class="fas fa-sign-in-alt"></i> Log In
+                        </button>
+                        
+                        <div class="auth-divider"><span>or</span></div>
+                        
+                        <p class="auth-switch">Don't have an account? <a href="#" onclick="Auth.showRegister()">Sign Up</a></p>
+                        
+                        <div id="login-error" class="error-msg hidden"></div>
+                    </div>
+                    
+                    <!-- Register Form -->
+                    <div id="register-form" class="auth-form">
+                        <h2>Join the Classroom! 🚀</h2>
+                        <p class="auth-subtitle">Create your account to start learning</p>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label><i class="fas fa-user"></i> Username</label>
+                                <input type="text" id="reg-username" placeholder="Choose a username">
+                            </div>
+                            <div class="form-group">
+                                <label><i class="fas fa-id-card"></i> Full Name</label>
+                                <input type="text" id="reg-fullname" placeholder="Your full name">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label><i class="fas fa-envelope"></i> Email</label>
+                            <input type="email" id="reg-email" placeholder="your@email.com">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label><i class="fas fa-lock"></i> Password</label>
+                            <input type="password" id="reg-password" placeholder="Choose a strong password">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label><i class="fas fa-user-tag"></i> I am a...</label>
+                            <div class="role-selector">
+                                <button class="role-btn active" data-role="student" onclick="Auth.selectRole('student')">
+                                    🧑‍🎓 Student
+                                </button>
+                                <button class="role-btn" data-role="teacher" onclick="Auth.selectRole('teacher')">
+                                    👨‍🏫 Teacher
+                                </button>
+                                <button class="role-btn" data-role="parent" onclick="Auth.selectRole('parent')">
+                                    👨‍👩‍👧 Parent
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <button id="register-btn" class="btn btn-primary btn-full" onclick="Auth.register()">
+                            <i class="fas fa-user-plus"></i> Create Account
+                        </button>
+                        
+                        <p class="auth-switch">Already have an account? <a href="#" onclick="Auth.showLogin()">Log In</a></p>
+                        
+                        <div id="register-error" class="error-msg hidden"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- MAIN APP (after login)                                -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <div id="main-app" class="page">
+            <!-- Sidebar Navigation -->
+            <nav id="sidebar" class="sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-logo">🎓</div>
+                    <h2>AI Classroom</h2>
+                    <button class="sidebar-toggle" onclick="App.toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                </div>
+                
+                <div class="sidebar-user" onclick="App.navigate('profile')" style="cursor:pointer;">
+                    <div class="user-avatar" id="sidebar-avatar">🧑‍🎓</div>
+                    <div class="user-info">
+                        <span class="user-name" id="sidebar-username">Student</span>
+                        <span class="user-level" id="sidebar-level">Level 1</span>
+                    </div>
+                </div>
+                
+                <ul class="sidebar-nav">
+                    <li class="nav-item active" data-page="dashboard" onclick="App.navigate('dashboard')">
+                        <i class="fas fa-home"></i><span>Dashboard</span>
+                    </li>
+                    <li class="nav-item" data-page="courses" onclick="App.navigate('courses')">
+                        <i class="fas fa-book"></i><span>Courses</span>
+                    </li>
+                    <li class="nav-item" data-page="create-course" onclick="App.navigate('create-course')">
+                        <i class="fas fa-plus-circle"></i><span>Create Course</span>
+                    </li>
+                    <li class="nav-item" data-page="visual-lab" onclick="App.navigate('visual-lab')">
+                        <i class="fas fa-wand-magic-sparkles"></i><span>Visual Lab</span>
+                    </li>
+                    <li class="nav-item" data-page="classroom" onclick="App.navigate('classroom')">
+                        <i class="fas fa-chalkboard-teacher"></i><span>Classroom</span>
+                    </li>
+                    <li class="nav-item" data-page="quiz" onclick="App.navigate('quiz')">
+                        <i class="fas fa-question-circle"></i><span>Quizzes</span>
+                    </li>
+                    <li class="nav-item" data-page="homework" onclick="App.navigate('homework')">
+                        <i class="fas fa-tasks"></i><span>Homework</span>
+                    </li>
+                    <li class="nav-item" data-page="achievements" onclick="App.navigate('achievements')">
+                        <i class="fas fa-trophy"></i><span>Achievements</span>
+                    </li>
+                    <li class="nav-item" data-page="leaderboard" onclick="App.navigate('leaderboard')">
+                        <i class="fas fa-ranking-star"></i><span>Leaderboard</span>
+                    </li>
+                    <li class="nav-item teacher-only" data-page="teacher-dashboard" onclick="App.navigate('teacher-dashboard')">
+                        <i class="fas fa-chart-bar"></i><span>Teacher Panel</span>
+                    </li>
+                    <li class="nav-item parent-only" data-page="parent-report" onclick="App.navigate('parent-report')">
+                        <i class="fas fa-file-alt"></i><span>Parent Report</span>
+                    </li>
+                </ul>
+                
+                <div class="sidebar-footer">
+                    <div class="xp-bar-mini">
+                        <div class="xp-label">
+                            <span>⭐ XP</span>
+                            <span id="sidebar-xp">0</span>
+                        </div>
+                        <div class="progress-bar-mini">
+                            <div class="progress-fill-mini" id="sidebar-xp-bar"></div>
+                        </div>
+                    </div>
+                    <button class="btn btn-ghost btn-sm" onclick="Auth.logout()">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </div>
+            </nav>
+
+            <!-- Sidebar Overlay (mobile) -->
+            <div id="sidebar-overlay" class="sidebar-overlay" onclick="App.closeSidebar()"></div>
+
+            <!-- Main Content Area -->
+            <main id="content" class="main-content">
+                <!-- Mobile Top Bar -->
+                <div class="mobile-topbar">
+                    <button class="mobile-hamburger" onclick="App.toggleSidebar()">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <div class="sidebar-logo">🎓</div>
+                    <h2>AI Classroom</h2>
+                </div>
+                
+                <!-- ─── Dashboard Page ─── -->
+                <section id="page-dashboard" class="content-page active">
+                    <div class="page-header">
+                        <div>
+                            <h1 id="dashboard-greeting">Good morning! 👋</h1>
+                            <p class="page-subtitle">Here's your learning overview</p>
+                        </div>
+                        <div class="streak-badge" id="dashboard-streak">
+                            <i class="fas fa-fire"></i> <span>0</span> day streak
+                        </div>
+                    </div>
+                    
+                    <!-- Stats Cards -->
+                    <div class="stats-grid">
+                        <div class="stat-card stat-xp">
+                            <div class="stat-icon">⭐</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="dash-xp">0</span>
+                                <span class="stat-label">Total XP</span>
+                            </div>
+                        </div>
+                        <div class="stat-card stat-level">
+                            <div class="stat-icon">🏆</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="dash-level">1</span>
+                                <span class="stat-label">Level</span>
+                            </div>
+                        </div>
+                        <div class="stat-card stat-lessons">
+                            <div class="stat-icon">📚</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="dash-lessons">0</span>
+                                <span class="stat-label">Lessons Done</span>
+                            </div>
+                        </div>
+                        <div class="stat-card stat-progress">
+                            <div class="stat-icon">📈</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="dash-progress">0%</span>
+                                <span class="stat-label">Progress</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Course Progress & Recommendations -->
+                    <div class="dashboard-grid">
+                        <div class="card">
+                            <h3><i class="fas fa-book-open"></i> Course Progress</h3>
+                            <div id="dash-course-progress" class="course-progress-list"></div>
+                        </div>
+                        <div class="card">
+                            <h3><i class="fas fa-lightbulb"></i> Recommended Next</h3>
+                            <div id="dash-recommendations" class="recommendations-list"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Activity -->
+                    <div class="card">
+                        <h3><i class="fas fa-clock"></i> Recent Lessons</h3>
+                        <div id="dash-recent" class="recent-list"></div>
+                    </div>
+                </section>
+
+                <!-- ─── Courses Page ─── -->
+                <section id="page-courses" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h1>📚 Courses</h1>
+                            <p class="page-subtitle">Choose a course to start learning</p>
+                        </div>
+                    </div>
+                    <div id="courses-grid" class="courses-grid"></div>
+                    
+                    <!-- Course Detail (shown when a course is selected) -->
+                    <div id="course-detail" class="course-detail hidden">
+                        <button class="btn btn-ghost" onclick="Courses.showCourseList()">
+                            <i class="fas fa-arrow-left"></i> Back to Courses
+                        </button>
+                        <div id="course-detail-content"></div>
+                    </div>
+                </section>
+
+                <!-- ─── Create Course Page ─── -->
+                <section id="page-create-course" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h1><i class="fas fa-magic" style="color: var(--accent-primary)"></i> Create Your Own Course</h1>
+                            <p class="page-subtitle">Tell me what you want to learn, or upload study material - AI will build a complete course for you!</p>
+                        </div>
+                    </div>
+                    
+                    <div class="create-course-grid">
+                        <!-- Option 1: Topic-based -->
+                        <div class="card create-course-card">
+                            <div class="create-course-icon"><i class="fas fa-lightbulb"></i></div>
+                            <h3>Describe a Topic</h3>
+                            <p class="text-muted">Tell AI what you want to learn and it will create a full course with lessons, examples, and quizzes.</p>
+                            
+                            <div class="form-group" style="margin-top: 16px;">
+                                <label><i class="fas fa-book-open"></i> What do you want to learn?</label>
+                                <input type="text" id="cc-topic" placeholder="e.g., React.js, Photosynthesis, Guitar Basics, History of Rome...">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label><i class="fas fa-info-circle"></i> Any specific details? (optional)</label>
+                                <textarea id="cc-detail" rows="3" placeholder="e.g., I'm a complete beginner, focus on practical examples, include real-world projects..."></textarea>
+                            </div>
+                            
+                            <button class="btn btn-primary btn-full" id="cc-generate-btn" onclick="CourseCreator.generateFromTopic()">
+                                <i class="fas fa-wand-magic-sparkles"></i> Generate Course with AI
+                            </button>
+                        </div>
+                        
+                        <!-- Option 2: File upload -->
+                        <div class="card create-course-card">
+                            <div class="create-course-icon"><i class="fas fa-file-upload"></i></div>
+                            <h3>Upload a File</h3>
+                            <p class="text-muted">Upload a textbook, notes, or any document (PDF, TXT) and AI will analyze it and create a structured course.</p>
+                            
+                            <div class="file-upload-zone" id="file-upload-zone">
+                                <input type="file" id="cc-file" accept=".pdf,.txt,.md,.text,.rst" style="display:none" onchange="CourseCreator.fileSelected()">
+                                <div class="file-upload-content" onclick="document.getElementById('cc-file').click()">
+                                    <i class="fas fa-cloud-upload-alt" style="font-size: 2.5rem; color: var(--accent-primary);"></i>
+                                    <p style="margin-top: 12px; font-weight: 600;">Click to upload or drag & drop</p>
+                                    <p class="text-muted" style="font-size: 0.8rem;">PDF, TXT, MD files (max 10MB)</p>
+                                </div>
+                                <div id="file-selected-info" class="file-selected-info hidden">
+                                    <i class="fas fa-file-alt" style="color: var(--accent-primary);"></i>
+                                    <span id="file-selected-name"></span>
+                                    <button class="btn btn-ghost btn-sm" onclick="CourseCreator.clearFile()">&times;</button>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group" style="margin-top: 12px;">
+                                <label><i class="fas fa-heading"></i> Course title hint (optional)</label>
+                                <input type="text" id="cc-file-title" placeholder="e.g., Advanced Biology Chapter 5...">
+                            </div>
+                            
+                            <button class="btn btn-primary btn-full" id="cc-file-btn" onclick="CourseCreator.generateFromFile()">
+                                <i class="fas fa-cogs"></i> Analyze & Create Course
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Generation Progress -->
+                    <div id="cc-progress" class="card hidden" style="margin-top: 24px; text-align: center; padding: 40px;">
+                        <div class="loader-spinner" style="margin: 0 auto 16px;"></div>
+                        <h3 id="cc-progress-title">AI is creating your course...</h3>
+                        <p class="text-muted" id="cc-progress-text">This may take 15-30 seconds. The AI is designing lessons, examples, and learning paths for you.</p>
+                    </div>
+                    
+                    <!-- Generation Result -->
+                    <div id="cc-result" class="card hidden" style="margin-top: 24px;">
+                        <div id="cc-result-content"></div>
+                    </div>
+                </section>
+
+                <!-- ─── Visual Lab Page ─── -->
+                <section id="page-visual-lab" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h1><i class="fas fa-wand-magic-sparkles" style="color: var(--accent-primary)"></i> Visual Lab</h1>
+                            <p class="page-subtitle">Generate AI-powered educational visuals for any concept</p>
+                        </div>
+                    </div>
+
+                    <div class="visual-lab-input-section card">
+                        <h3><i class="fas fa-flask"></i> What concept do you want to visualize?</h3>
+                        <p class="text-muted">Describe any topic and the AI will create an interactive animation or diagram to help you understand it.</p>
+                        <div class="visual-lab-form">
+                            <input type="text" id="visual-lab-concept" placeholder="e.g., Gravity - apple falling from tree, Solar system orbits, Bubble sort algorithm..." class="input-lg">
+                            <div class="visual-lab-type-selector">
+                                <label class="visual-type-option">
+                                    <input type="radio" name="visual-type" value="animation" checked>
+                                    <span class="visual-type-label"><i class="fas fa-play-circle"></i> Animation</span>
+                                </label>
+                                <label class="visual-type-option">
+                                    <input type="radio" name="visual-type" value="image">
+                                    <span class="visual-type-label"><i class="fas fa-image"></i> AI Image (DALL-E)</span>
+                                </label>
+                            </div>
+                            <button class="btn btn-primary btn-lg" onclick="VisualLab.generate()">
+                                <i class="fas fa-wand-magic-sparkles"></i> Generate Visual
+                            </button>
+                        </div>
+
+                        <div class="visual-lab-examples">
+                            <span class="text-muted">Try:</span>
+                            <button class="btn btn-ghost btn-sm" onclick="VisualLab.fillExample('Gravity - apple falling from a tree with acceleration')">🍎 Gravity</button>
+                            <button class="btn btn-ghost btn-sm" onclick="VisualLab.fillExample('Planets orbiting the sun in our solar system')">🌍 Solar System</button>
+                            <button class="btn btn-ghost btn-sm" onclick="VisualLab.fillExample('Bubble sort algorithm sorting numbered bars')">📊 Sorting</button>
+                            <button class="btn btn-ghost btn-sm" onclick="VisualLab.fillExample('Water cycle with evaporation condensation and precipitation')">💧 Water Cycle</button>
+                            <button class="btn btn-ghost btn-sm" onclick="VisualLab.fillExample('Simple electric circuit with battery and light bulb')">💡 Circuit</button>
+                            <button class="btn btn-ghost btn-sm" onclick="VisualLab.fillExample('DNA double helix structure with base pairs')">🧬 DNA</button>
+                            <button class="btn btn-ghost btn-sm" onclick="VisualLab.fillExample('Photosynthesis process in a plant')">🌱 Photosynthesis</button>
+                            <button class="btn btn-ghost btn-sm" onclick="VisualLab.fillExample('Projectile motion trajectory with velocity vectors')">🚀 Projectile</button>
+                        </div>
+                    </div>
+
+                    <!-- Visual Output -->
+                    <div id="visual-lab-output" class="hidden" style="margin-top: 24px;">
+                        <div id="visual-lab-result"></div>
+                    </div>
+
+                    <!-- Visual History -->
+                    <div id="visual-lab-history" class="hidden" style="margin-top: 24px;">
+                        <h3><i class="fas fa-history"></i> Recent Visuals</h3>
+                        <div id="visual-lab-history-grid" class="visual-history-grid"></div>
+                    </div>
+                </section>
+
+                <!-- ─── Classroom Page (The Main Tutor) ─── -->
+                <section id="page-classroom" class="content-page">
+                    <div class="classroom-container">
+                        <!-- Classroom Header -->
+                        <div class="classroom-header">
+                            <div class="classroom-info">
+                                <button class="btn btn-ghost btn-sm" onclick="App.navigate('courses')">
+                                    <i class="fas fa-arrow-left"></i>
+                                </button>
+                                <div>
+                                    <h2 id="classroom-title">Virtual Classroom</h2>
+                                    <p id="classroom-course" class="text-muted">Select a lesson to begin</p>
+                                </div>
+                            </div>
+                            <div class="classroom-actions">
+                                <div class="progress-indicator" id="classroom-progress-bar">
+                                    <span id="classroom-concept-num">0/0</span>
+                                    <div class="progress-bar-sm">
+                                        <div class="progress-fill-sm" id="classroom-progress-fill"></div>
+                                    </div>
+                                </div>
+                                <button class="btn btn-sm btn-accent" id="voice-toggle" onclick="Voice.toggle()" title="Toggle Voice">
+                                    <i class="fas fa-volume-up"></i>
+                                </button>
+                                <button class="btn btn-sm btn-accent" onclick="Classroom.takeQuiz()" title="Take Quiz">
+                                    <i class="fas fa-clipboard-question"></i> Quiz
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Chat / Teaching Area -->
+                        <div class="voice-mode-banner" id="voice-mode-banner">
+                            <i class="fas fa-headset"></i>
+                            <span class="voice-status-text" id="voice-status-text">🔊 Voice teaching active — I'll speak when explaining concepts</span>
+                            <button class="btn-stop-speaking" id="stop-speaking-btn" onclick="Voice.stop()" style="display:none">
+                                <i class="fas fa-stop"></i> Stop
+                            </button>
+                            <button class="btn-play-speaking" id="play-speaking-btn" onclick="Voice.replay()" style="display:none">
+                                <i class="fas fa-play"></i> Play Again
+                            </button>
+                        </div>
+                        <div class="classroom-chat" id="classroom-chat">
+                            <div class="chat-welcome">
+                                <div class="tutor-avatar-big">🎓</div>
+                                <h2>Welcome to Your Virtual Classroom!</h2>
+                                <p>I'm <strong>Professor AI</strong>, your personal tutor. Select a lesson from Courses to start learning!</p>
+                                <p>I'll teach you step by step, ask questions to check your understanding, and help you master every concept. Let's learn together! 🚀</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Input Area -->
+                        <div class="classroom-input">
+                            <div class="input-container">
+                                <button class="btn btn-icon" id="mic-btn" onclick="Voice.startListening()" title="Voice Input">
+                                    <i class="fas fa-microphone"></i>
+                                </button>
+                                <input type="text" id="student-input" placeholder="Type your answer or question..." 
+                                       onkeypress="if(event.key==='Enter') Classroom.sendMessage()">
+                                <button class="btn btn-accent btn-icon" onclick="Classroom.requestVisual()" id="visual-btn" title="Generate Visual for current topic">
+                                    <i class="fas fa-wand-magic-sparkles"></i>
+                                </button>
+                                <button class="btn btn-primary btn-icon" onclick="Classroom.sendMessage()" id="send-btn">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                            <div class="input-hints">
+                                <small>💡 Answer questions, ask for clarification, or click <i class="fas fa-wand-magic-sparkles"></i> to generate a visual for any concept</small>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ─── Quiz Page ─── -->
+                <section id="page-quiz" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h1>📝 Quiz Zone</h1>
+                            <p class="page-subtitle">Test your knowledge and earn XP!</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Quiz Selection -->
+                    <div id="quiz-selection" class="quiz-selection">
+                        <p>Select a lesson to take a quiz:</p>
+                        <div id="quiz-lesson-list" class="quiz-lesson-grid"></div>
+                    </div>
+                    
+                    <!-- Active Quiz -->
+                    <div id="quiz-active" class="quiz-active hidden">
+                        <div class="quiz-header">
+                            <h3 id="quiz-title">Quiz</h3>
+                            <div class="quiz-progress">
+                                <span id="quiz-counter">1/5</span>
+                                <div class="progress-bar-sm">
+                                    <div class="progress-fill-sm" id="quiz-progress-fill"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="quiz-question-area" class="quiz-question-area"></div>
+                        <div id="quiz-feedback" class="quiz-feedback hidden"></div>
+                        <button id="quiz-next-btn" class="btn btn-primary hidden" onclick="Quiz.nextQuestion()">
+                            Next Question <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                    
+                    <!-- Quiz Results -->
+                    <div id="quiz-results" class="quiz-results hidden">
+                        <div class="quiz-results-card">
+                            <div id="quiz-results-content"></div>
+                            <button class="btn btn-primary" onclick="Quiz.reset()">
+                                <i class="fas fa-redo"></i> Try Another Quiz
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ─── Homework Page ─── -->
+                <section id="page-homework" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h1>📚 Homework</h1>
+                            <p class="page-subtitle">Complete assignments to reinforce your learning</p>
+                        </div>
+                        <button class="btn btn-primary teacher-only" onclick="HomeworkPage.showCreateForm()">
+                            <i class="fas fa-plus"></i> Create Homework
+                        </button>
+                    </div>
+                    
+                    <div id="homework-list" class="homework-list"></div>
+                    
+                    <!-- Homework Create Modal -->
+                    <div id="homework-create-modal" class="modal hidden">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h3>Create Homework</h3>
+                                <button class="btn btn-ghost btn-sm" onclick="HomeworkPage.hideCreateForm()">&times;</button>
+                            </div>
+                            <div class="form-group">
+                                <label>Title</label>
+                                <input type="text" id="hw-title" placeholder="Homework title">
+                            </div>
+                            <div class="form-group">
+                                <label>Description / Instructions</label>
+                                <textarea id="hw-description" rows="4" placeholder="Describe the assignment..."></textarea>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Difficulty</label>
+                                    <select id="hw-difficulty">
+                                        <option value="easy">Easy</option>
+                                        <option value="medium" selected>Medium</option>
+                                        <option value="hard">Hard</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Score</label>
+                                    <input type="number" id="hw-max-score" value="100">
+                                </div>
+                            </div>
+                            <button class="btn btn-primary btn-full" onclick="HomeworkPage.create()">
+                                <i class="fas fa-plus"></i> Create
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Homework Submit Modal -->
+                    <div id="homework-submit-modal" class="modal hidden">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h3 id="hw-submit-title">Submit Homework</h3>
+                                <button class="btn btn-ghost btn-sm" onclick="HomeworkPage.hideSubmitForm()">&times;</button>
+                            </div>
+                            <p id="hw-submit-desc" class="text-muted"></p>
+                            <div class="form-group">
+                                <label>Your Answer / Solution</label>
+                                <textarea id="hw-content" rows="8" placeholder="Write your solution here... You can include code!"></textarea>
+                            </div>
+                            <button class="btn btn-primary btn-full" onclick="HomeworkPage.submit()">
+                                <i class="fas fa-paper-plane"></i> Submit
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ─── Achievements Page ─── -->
+                <section id="page-achievements" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h1>🏆 Achievements</h1>
+                            <p class="page-subtitle">Your XP, badges, and milestones</p>
+                        </div>
+                    </div>
+                    
+                    <!-- XP Card -->
+                    <div class="xp-card-big">
+                        <div class="xp-circle">
+                            <svg viewBox="0 0 100 100">
+                                <circle class="xp-bg" cx="50" cy="50" r="45"></circle>
+                                <circle class="xp-fill" cx="50" cy="50" r="45" id="xp-circle-fill"></circle>
+                            </svg>
+                            <div class="xp-circle-text">
+                                <span class="xp-level" id="ach-level">1</span>
+                                <small>Level</small>
+                            </div>
+                        </div>
+                        <div class="xp-details">
+                            <h2 id="ach-xp-total">0 XP</h2>
+                            <div class="xp-next">
+                                <span id="ach-xp-progress">0</span> / <span id="ach-xp-next">200</span> XP to next level
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="ach-xp-bar"></div>
+                            </div>
+                            <div class="xp-stats-row">
+                                <div>🔥 <span id="ach-streak">0</span> Day Streak</div>
+                                <div>📚 <span id="ach-lessons">0</span> Lessons</div>
+                                <div>🧠 <span id="ach-quizzes">0</span> Quizzes</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Badges Grid -->
+                    <h3 class="section-title">🏅 Badges</h3>
+                    <div id="badges-grid" class="badges-grid"></div>
+                </section>
+
+                <!-- ─── Leaderboard Page ─── -->
+                <section id="page-leaderboard" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h1>🔥 Leaderboard</h1>
+                            <p class="page-subtitle">Top learners in the classroom</p>
+                        </div>
+                    </div>
+                    <div id="leaderboard-table" class="leaderboard-table"></div>
+                </section>
+
+                <!-- ─── Teacher Dashboard ─── -->
+                <section id="page-teacher-dashboard" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h1>👨‍🏫 Teacher Dashboard</h1>
+                            <p class="page-subtitle">Monitor student progress and performance</p>
+                        </div>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon">👥</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="td-students">0</span>
+                                <span class="stat-label">Students</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📖</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="td-lessons">0</span>
+                                <span class="stat-label">Lessons Completed</span>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon">📊</div>
+                            <div class="stat-info">
+                                <span class="stat-value" id="td-understanding">0%</span>
+                                <span class="stat-label">Avg Understanding</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h3><i class="fas fa-users"></i> Student Overview</h3>
+                        <div id="td-student-table" class="student-table"></div>
+                    </div>
+                </section>
+
+                <!-- ─── Parent Report ─── -->
+                <section id="page-parent-report" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h1>👨‍👩‍👧 Parent Report</h1>
+                            <p class="page-subtitle">Your child's learning journey</p>
+                        </div>
+                    </div>
+                    <div id="parent-report-content"></div>
+                </section>
+
+                <!-- ─── Profile Page ─── -->
+                <section id="page-profile" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h1>👤 My Profile</h1>
+                            <p class="page-subtitle">Manage your account settings</p>
+                        </div>
+                    </div>
+                    
+                    <div class="profile-grid">
+                        <!-- Profile Card -->
+                        <div class="card profile-card">
+                            <div class="profile-avatar-large" id="profile-avatar-display">🧑‍🎓</div>
+                            <h2 id="profile-fullname">Student</h2>
+                            <p class="text-muted" id="profile-username">@username</p>
+                            <p class="text-muted" id="profile-email">email@example.com</p>
+                            <div class="profile-role-badge" id="profile-role">student</div>
+                        </div>
+                        
+                        <!-- Edit Profile -->
+                        <div class="card">
+                            <h3><i class="fas fa-edit"></i> Edit Profile</h3>
+                            <div class="form-group" style="margin-top:16px;">
+                                <label>Full Name</label>
+                                <input type="text" id="profile-name-input" class="input" placeholder="Your full name">
+                            </div>
+                            <div class="form-group">
+                                <label>Avatar Emoji</label>
+                                <div class="avatar-picker" id="avatar-picker">
+                                    <span class="avatar-option" data-avatar="🧑‍🎓">🧑‍🎓</span>
+                                    <span class="avatar-option" data-avatar="👨‍💻">👨‍💻</span>
+                                    <span class="avatar-option" data-avatar="👩‍🔬">👩‍🔬</span>
+                                    <span class="avatar-option" data-avatar="🧑‍🚀">🧑‍🚀</span>
+                                    <span class="avatar-option" data-avatar="🧙‍♂️">🧙‍♂️</span>
+                                    <span class="avatar-option" data-avatar="👩‍🎨">👩‍🎨</span>
+                                    <span class="avatar-option" data-avatar="🦸">🦸</span>
+                                    <span class="avatar-option" data-avatar="🤖">🤖</span>
+                                    <span class="avatar-option" data-avatar="🐱">🐱</span>
+                                    <span class="avatar-option" data-avatar="🦊">🦊</span>
+                                    <span class="avatar-option" data-avatar="🐸">🐸</span>
+                                    <span class="avatar-option" data-avatar="🌟">🌟</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" onclick="Profile.saveProfile()" style="margin-top:8px;">
+                                <i class="fas fa-save"></i> Save Changes
+                            </button>
+                        </div>
+                        
+                        <!-- Change Password -->
+                        <div class="card">
+                            <h3><i class="fas fa-lock"></i> Change Password</h3>
+                            <div class="form-group" style="margin-top:16px;">
+                                <label>Current Password</label>
+                                <input type="password" id="profile-current-pw" class="input" placeholder="Enter current password">
+                            </div>
+                            <div class="form-group">
+                                <label>New Password</label>
+                                <input type="password" id="profile-new-pw" class="input" placeholder="Enter new password">
+                            </div>
+                            <div class="form-group">
+                                <label>Confirm New Password</label>
+                                <input type="password" id="profile-confirm-pw" class="input" placeholder="Confirm new password">
+                            </div>
+                            <button class="btn btn-primary" onclick="Profile.changePassword()">
+                                <i class="fas fa-key"></i> Change Password
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="loading-overlay hidden">
+        <div class="loader">
+            <div class="loader-spinner"></div>
+            <p>Loading...</p>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- JavaScript Files -->
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/auth.js"></script>
+    <script src="/static/js/profile.js"></script>
+    <script src="/static/js/classroom.js"></script>
+    <script src="/static/js/quiz.js"></script>
+    <script src="/static/js/gamification.js"></script>
+    <script src="/static/js/homework.js"></script>
+    <script src="/static/js/dashboard.js"></script>
+    <script src="/static/js/voice.js"></script>
+    <script src="/static/js/course-creator.js"></script>
+    <script src="/static/js/visual-lab.js"></script>
+</body>
+</html>
