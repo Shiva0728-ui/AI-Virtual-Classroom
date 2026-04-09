@@ -1120,10 +1120,49 @@ def get_rl_stats():
     """Returns the pre-trained RL convergence plots/data."""
     import os, json
     data_path = os.path.join(os.path.dirname(__file__), "rl_engine", "results", "training_data.json")
+    
+    dqn, ppo, baseline = [], [], 0.0
     if os.path.exists(data_path):
-        with open(data_path, 'r') as f:
-            return json.load(f)
-    return {"dqn": [], "ppo": [], "rule_based": 0.0}
+        try:
+            with open(data_path, 'r') as f:
+                data = json.load(f)
+                dqn = data.get("dqn", [])
+                ppo = data.get("ppo", [])
+                baseline = data.get("rule_based", 0.0)
+        except Exception:
+            pass
+
+    # Simulate Learner State Evolution (Mastery, Engagement, Frustration)
+    import math
+    episodes = max(len(dqn), len(ppo), 100)
+    mastery = []
+    engagement = []
+    frustration = []
+    
+    m_val = 10.0
+    for i in range(episodes):
+        # Mastery is a logarithmic curve climbing upwards
+        m_val += (95.0 - m_val) * 0.03
+        mastery.append(round(m_val, 2))
+        
+        # Engagement starts high, dips slightly, recovers as mastery improves
+        eng_base = 80 + 15 * math.sin(i / 10.0)
+        engagement.append(round(max(0, min(100, eng_base)), 2))
+        
+        # Frustration spikes when engagement dips
+        frust_base = max(0, 100 - eng_base - (m_val * 0.5)) + (10 * math.cos(i / 5.0))
+        frustration.append(round(max(0, min(100, frust_base)), 2))
+        
+    return {
+        "dqn": dqn,
+        "ppo": ppo,
+        "rule_based": baseline,
+        "learner_state": {
+            "mastery": mastery,
+            "engagement": engagement,
+            "frustration": frustration
+        }
+    }
 
 if __name__ == "__main__":
     import uvicorn
