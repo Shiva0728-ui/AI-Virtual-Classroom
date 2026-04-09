@@ -6,10 +6,12 @@ import json
 import os
 import sys
 import tempfile
+import traceback
+import shutil
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
 
-from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Form
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File, Form, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +35,7 @@ from auth import (
 )
 from tutor_engine import TutorEngine
 from visual_engine import VisualEngine
+from nova_brain import NovaBrain
 
 # ─── App Setup ─────────────────────────────────────────────────
 
@@ -56,6 +59,38 @@ if os.path.exists(frontend_path):
 def startup():
     init_db()
     seed_data()
+    # Sync persisted data from Firestore into ephemeral SQLite
+    try:
+        from firebase_client import get_all_users, get_all_courses
+        from models import SessionLocal, User
+        import logging
+        
+        logger_startup = logging.getLogger('startup')
+        
+        db = SessionLocal()
+        users = get_all_users()
+        for u_data in users:
+            if not db.query(User).filter(User.id == u_data.get('id')).first():
+                u = User(
+                    id=u_data.get('id'),
+                    username=u_data.get('username'),
+                    email=u_data.get('email'),
+                    password_hash=u_data.get('password_hash'),
+                    full_name=u_data.get('full_name', ''),
+                    role=u_data.get('role', 'student'),
+                    avatar=u_data.get('avatar', '🧑‍🎓'),
+                    parent_id=u_data.get('parent_id')
+                )
+                db.add(u)
+        db.commit()
+        db.close()
+        
+        # Firestore sync happens silently — if no credentials, it's a no-op
+        logger_startup.info('Firestore sync completed on startup.')
+    except Exception as e:
+        print(f'Firestore startup sync skipped: {e}')
+
+import logging
 
 
 # ─── Pydantic Models ──────────────────────────────────────────
@@ -117,6 +152,10 @@ class VisualRequest(BaseModel):
     context: str = ""
     visual_type: str = "auto"
 
+class NovaAskRequest(BaseModel):
+    question: str
+    screen_context: str = ""
+
 
 # ─── Root & Frontend ──────────────────────────────────────────
 
@@ -151,6 +190,16 @@ def api_register(req: RegisterRequest, db: Session = Depends(get_db)):
 @app.post("/api/auth/login")
 def api_login(req: LoginRequest, db: Session = Depends(get_db)):
     return login_user(db, req.username, req.password)
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    print(f"Global Exception: {exc}")
+    trace = traceback.format_exc()
+    return JSONResponse(
+        status_code=400,
+        content={"error": "Internal Backend Error", "detail": str(exc), "traceback": trace}
+    )
 
 
 @app.get("/api/auth/me")
@@ -954,7 +1003,6 @@ def get_progress_overview(user: User = Depends(get_current_user), db: Session = 
         "recent_lessons": recent_lessons,
     }
 
-
 # ─── HELPER FUNCTIONS ────────────────────────────────────────
 
 def _award_xp(db: Session, user_id: int, amount: int, reason: str = ""):
@@ -967,7 +1015,6 @@ def _award_xp(db: Session, user_id: int, amount: int, reason: str = ""):
     xp.level = max(1, xp.xp_total // 200 + 1)
     db.commit()
 
-
 def _update_streak(db: Session, user_id: int):
     """Update daily streak."""
     xp = db.query(UserXP).filter(UserXP.user_id == user_id).first()
@@ -975,11 +1022,12 @@ def _update_streak(db: Session, user_id: int):
         xp = UserXP(user_id=user_id)
         db.add(xp)
     
+    from datetime import datetime, timedelta, timezone
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).strftime("%Y-%m-%d")
     
     if xp.last_active_date == today:
-        return  # Already counted today
+        return
     elif xp.last_active_date == yesterday:
         xp.streak_days += 1
     else:
@@ -989,7 +1037,6 @@ def _update_streak(db: Session, user_id: int):
     if xp.streak_days > xp.longest_streak:
         xp.longest_streak = xp.streak_days
     db.commit()
-
 
 def _check_badges(db: Session, user_id: int):
     """Check and award badges based on criteria."""
@@ -1034,14 +1081,49 @@ def _check_badges(db: Session, user_id: int):
             ub = UserBadge(user_id=user_id, badge_id=badge.id)
             db.add(ub)
     
-    # Update counts
     xp.lessons_completed = lessons_completed
     xp.quizzes_passed = quizzes_passed
     xp.homework_completed = hw_completed
     db.commit()
 
+# ─── NOVA AI Teacher API ──────────────────────────────────────
 
-# ─── Run ──────────────────────────────────────────────────────
+@app.get("/api/nova/status")
+def get_nova_status(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Returns NOVA's current analysis and proactive suggestions."""
+    try:
+        status = NovaBrain.analyze_student(db, current_user.id)
+        return status
+    except Exception as e:
+        print(f"NOVA Status Error: {e}")
+        return {"mood": "neutral", "message": "NOVA is initializing...", "suggestions": []}
+
+
+@app.post("/api/nova/ask")
+def ask_nova(req: NovaAskRequest, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Conversational AI endpoint — ask NOVA anything."""
+    try:
+        result = NovaBrain.ask(db, current_user.id, req.question, req.screen_context)
+        return result
+    except Exception as e:
+        print(f"NOVA Ask Error: {e}")
+        return {"response": "I encountered an error. Please try again!", "mood": "confused"}
+
+
+# Keep legacy endpoint for backward compat
+@app.get("/api/jarvis/status")
+def get_jarvis_status_legacy(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    return get_nova_status(current_user, db)
+
+@app.get("/api/rl/stats")
+def get_rl_stats():
+    """Returns the pre-trained RL convergence plots/data."""
+    import os, json
+    data_path = os.path.join(os.path.dirname(__file__), "rl_engine", "results", "training_data.json")
+    if os.path.exists(data_path):
+        with open(data_path, 'r') as f:
+            return json.load(f)
+    return {"dqn": [], "ppo": [], "rule_based": 0.0}
 
 if __name__ == "__main__":
     import uvicorn

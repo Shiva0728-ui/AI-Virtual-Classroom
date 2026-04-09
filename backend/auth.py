@@ -2,7 +2,7 @@
 Authentication helpers for AI Virtual Classroom
 """
 from datetime import datetime, timedelta, timezone
-from passlib.context import CryptContext
+import bcrypt
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
@@ -11,16 +11,15 @@ from sqlalchemy.orm import Session
 from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from models import get_db, User, UserXP
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 security = HTTPBearer()
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 
 def create_access_token(data: dict) -> str:
@@ -79,6 +78,24 @@ def register_user(db: Session, username: str, email: str, password: str, full_na
 
     db.commit()
     db.refresh(user)
+
+    # Sync to Firebase
+    try:
+        from firebase_client import save_user as fb_save_user
+        fb_save_user({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "password_hash": user.password_hash,
+            "full_name": user.full_name,
+            "role": user.role,
+            "avatar": user.avatar,
+            "parent_id": user.parent_id
+        })
+    except Exception as e:
+        import logging
+        logging.error(f"Firebase sync logic failed: {e}")
+
     return user
 
 
