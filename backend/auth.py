@@ -137,8 +137,11 @@ def login_user(db: Session, username: str, password: str) -> dict:
     ).first()
     
     # Dynamic Firebase fallback
+    fallback_err = ""
     if not user:
         try:
+            import logging
+            logging.error("Attempting dynamic fallback for user...")
             from firebase_client import get_all_users
             users = get_all_users()
             for u_data in users:
@@ -157,11 +160,13 @@ def login_user(db: Session, username: str, password: str) -> dict:
                         db.add(user)
                         db.commit()
                         break
-        except Exception:
-            pass
+        except Exception as e:
+            fallback_err = str(e)
+            import traceback
+            fallback_err += traceback.format_exc()
 
     if not user or not verify_password(password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        raise HTTPException(status_code=401, detail=f"Invalid credentials (firebase fb error: {fallback_err})")
 
     token = create_access_token({"sub": str(user.id), "role": user.role})
     return {
