@@ -1164,6 +1164,24 @@ def get_rl_stats():
         }
     }
 
+@app.get("/api/debug/users")
+def debug_users(db: Session = Depends(get_db)):
+    """Secret debug endpoint to check sqlite vs firebase state."""
+    from models import User
+    sqlite_users = db.query(User).all()
+    
+    try:
+        from firebase_client import get_all_users
+        firebase_users = get_all_users()
+    except Exception as e:
+        firebase_users = f"Error: {e}"
+        
+    return {
+        "sqlite_count": len(sqlite_users),
+        "sqlite_users": [{"id": u.id, "username": u.username} for u in sqlite_users],
+        "firebase_users": [{"id": u.get("id"), "username": u.get("username")} for u in firebase_users] if isinstance(firebase_users, list) else firebase_users
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
