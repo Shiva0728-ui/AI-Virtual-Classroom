@@ -58,8 +58,15 @@ def register_user(db: Session, username: str, email: str, password: str, full_na
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    # Generate globally unique integer ID for serverless environments
+    import random
+    user_id = random.randint(100000000, 2147483647)
+    while db.query(User).filter(User.id == user_id).first():
+        user_id = random.randint(100000000, 2147483647)
+
     avatars = {"student": "🧑‍🎓", "teacher": "👨‍🏫", "parent": "👨‍👩‍👧"}
     user = User(
+        id=user_id,
         username=username,
         email=email,
         password_hash=hash_password(password),
