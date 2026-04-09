@@ -21,6 +21,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/python.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/javascript.min.js"></script>
     
+    <!-- Chart.js for Evaluative Analytics -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
     <!-- Our CSS -->
     <link rel="stylesheet" href="/static/css/styles.css">
 </head>
@@ -185,6 +188,9 @@
                     <li class="nav-item teacher-only" data-page="teacher-dashboard" onclick="App.navigate('teacher-dashboard')">
                         <i class="fas fa-chart-bar"></i><span>Teacher Panel</span>
                     </li>
+                    <li class="nav-item" data-page="rl-dashboard" onclick="App.navigate('rl-dashboard')">
+                        <i class="fas fa-brain"></i><span>RL Analytics</span>
+                    </li>
                     <li class="nav-item parent-only" data-page="parent-report" onclick="App.navigate('parent-report')">
                         <i class="fas fa-file-alt"></i><span>Parent Report</span>
                     </li>
@@ -227,8 +233,13 @@
                             <h1 id="dashboard-greeting">Good morning! 👋</h1>
                             <p class="page-subtitle">Here's your learning overview</p>
                         </div>
-                        <div class="streak-badge" id="dashboard-streak">
-                            <i class="fas fa-fire"></i> <span>0</span> day streak
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <div class="streak-badge" id="dashboard-streak">
+                                <i class="fas fa-fire"></i> <span>0</span> day streak
+                            </div>
+                            <button class="btn btn-ghost btn-sm" onclick="Auth.logout()" title="Logout">
+                                <i class="fas fa-sign-out-alt"></i> Logout
+                            </button>
                         </div>
                     </div>
                     
@@ -264,6 +275,21 @@
                         </div>
                     </div>
                     
+                    <!-- NOVA Insight Card -->
+                    <div id="nova-insight-card" class="card" style="margin-bottom: 24px; border-left: 4px solid var(--accent-primary); background: linear-gradient(90deg, var(--bg-card), rgba(0, 255, 255, 0.05));">
+                        <div style="display: flex; align-items: start; gap: 16px;">
+                            <div class="nova-avatar-sm" id="dash-nova-avatar">
+                                <div class="nova-core"></div>
+                                <div class="nova-ring nova-ring-1"></div>
+                                <div class="nova-ring nova-ring-2"></div>
+                            </div>
+                            <div>
+                                <h3 style="margin: 0 0 4px 0; color: var(--accent-secondary); font-size: 0.9rem; text-transform: uppercase;">NOVA Insight</h3>
+                                <p id="dash-nova-insight" style="margin: 0; font-size: 1.05rem; font-weight: 500;">Analyzing your learning patterns...</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Course Progress & Recommendations -->
                     <div class="dashboard-grid">
                         <div class="card">
@@ -280,6 +306,55 @@
                     <div class="card">
                         <h3><i class="fas fa-clock"></i> Recent Lessons</h3>
                         <div id="dash-recent" class="recent-list"></div>
+                    </div>
+                </section>
+
+                <!-- ─── RL Evaluation Dashboard Page ─── -->
+                <section id="page-rl-dashboard" class="content-page">
+                    <div class="page-header">
+                        <div>
+                            <h1>Reinforcement Learning Analytics</h1>
+                            <p class="page-subtitle">Dissertation Evaluation Interface: Formal Learner Model convergence tracking</p>
+                        </div>
+                        <button class="btn btn-primary" onclick="RLDashboard.loadStats()"><i class="fas fa-sync-alt"></i> Refresh Data</button>
+                    </div>
+
+                    <div class="card" style="margin-bottom: 24px;">
+                        <h3>Objective: Adaptive Instructional Sequencing</h3>
+                        <p style="color: var(--text-muted); font-size: 0.95rem;">
+                            This dashboard tracks the offline training convergence of our two Deep Reinforcement Learning agents (<b>DQN</b> and <b>PPO</b>) against a <b>Rule-Based Baseline</b> heuristic engine. 
+                        </p>
+                    </div>
+
+                    <div class="dashboard-grid" style="grid-template-columns: 2fr 1fr;">
+                        <div class="card" style="min-height: 400px; display: flex; flex-direction: column;">
+                            <h3><i class="fas fa-chart-line"></i> Reward Convergence Trends</h3>
+                            <div style="flex-grow: 1; position: relative;">
+                                <canvas id="rl-convergence-chart"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="card" style="display: flex; flex-direction: column; gap: 16px;">
+                            <h3><i class="fas fa-server"></i> Active RL Agent</h3>
+                            <div class="agent-status-box" style="padding: 16px; background: rgba(0, 255, 255, 0.1); border-left: 4px solid var(--accent-primary); border-radius: 4px;">
+                                <h4 style="margin: 0 0 8px 0; color: var(--accent-primary);">PPO (Proximal Policy Optimization)</h4>
+                                <p style="margin: 0; font-size: 0.9rem;">Currently injecting logic into the LLM Tutor.</p>
+                            </div>
+                            
+                            <h3>Performance Metrics (Last 100 Ep)</h3>
+                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-color); padding-bottom: 8px;">
+                                <span>PPO Avg Reward:</span>
+                                <strong id="rl-ppo-avg" style="color: var(--status-success);">--</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border-light); padding-bottom: 8px;">
+                                <span>DQN Avg Reward:</span>
+                                <strong id="rl-dqn-avg" style="color: var(--accent-secondary);">--</strong>
+                            </div>
+                            <div style="display: flex; justify-content: space-between;">
+                                <span>Rule-Based Baseline:</span>
+                                <strong id="rl-rule-avg" style="color: var(--warning);">--</strong>
+                            </div>
+                        </div>
                     </div>
                 </section>
 
@@ -433,8 +508,14 @@
 
                 <!-- ─── Classroom Page (The Main Tutor) ─── -->
                 <section id="page-classroom" class="content-page">
+                    <!-- Cinematic Lesson Intro Overlay -->
+                    <div id="lesson-intro-overlay" class="lesson-intro-overlay"></div>
+                    
+                    <!-- Particle Container for Celebrations -->
+                    <div id="particle-container" class="particle-container"></div>
+
                     <div class="classroom-container">
-                        <!-- Classroom Header -->
+                        <!-- Classroom Header — Futuristic -->
                         <div class="classroom-header">
                             <div class="classroom-info">
                                 <button class="btn btn-ghost btn-sm" onclick="App.navigate('courses')">
@@ -446,12 +527,30 @@
                                 </div>
                             </div>
                             <div class="classroom-actions">
+                                <!-- Phase Indicator -->
+                                <div class="phase-indicator-wrapper" id="phase-indicator" style="--phase-color: #6366f1;">
+                                    <span class="phase-icon">📚</span>
+                                    <span class="phase-label">Ready</span>
+                                </div>
+
                                 <div class="progress-indicator" id="classroom-progress-bar">
                                     <span id="classroom-concept-num">0/0</span>
                                     <div class="progress-bar-sm">
                                         <div class="progress-fill-sm" id="classroom-progress-fill"></div>
                                     </div>
                                 </div>
+
+                                <!-- Understanding Meter -->
+                                <div class="understanding-meter" id="understanding-meter">
+                                    <svg viewBox="0 0 100 100" class="understanding-svg">
+                                        <circle class="meter-bg" cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="6"></circle>
+                                        <circle class="meter-fill" id="understanding-circle" cx="50" cy="50" r="45" fill="none" stroke="#6366f1" stroke-width="6" stroke-linecap="round" transform="rotate(-90 50 50)" stroke-dasharray="283" stroke-dashoffset="283"></circle>
+                                    </svg>
+                                    <div class="meter-text">
+                                        <span id="understanding-text">0%</span>
+                                    </div>
+                                </div>
+
                                 <button class="btn btn-sm btn-accent" id="voice-toggle" onclick="Voice.toggle()" title="Toggle Voice">
                                     <i class="fas fa-volume-up"></i>
                                 </button>
@@ -460,6 +559,9 @@
                                 </button>
                             </div>
                         </div>
+
+                        <!-- Concept Progress Cards -->
+                        <div class="concept-cards-track" id="concept-cards"></div>
                         
                         <!-- Chat / Teaching Area -->
                         <div class="voice-mode-banner" id="voice-mode-banner">
@@ -474,7 +576,7 @@
                         </div>
                         <div class="classroom-chat" id="classroom-chat">
                             <div class="chat-welcome">
-                                <div class="tutor-avatar-big">🎓</div>
+                                <div class="tutor-avatar-big" id="teacher-avatar">🎓</div>
                                 <h2>Welcome to Your Virtual Classroom!</h2>
                                 <p>I'm <strong>Professor AI</strong>, your personal tutor. Select a lesson from Courses to start learning!</p>
                                 <p>I'll teach you step by step, ask questions to check your understanding, and help you master every concept. Let's learn together! 🚀</p>
@@ -804,16 +906,18 @@
     <div id="toast-container" class="toast-container"></div>
 
     <!-- JavaScript Files -->
-    <script src="/static/js/app.js"></script>
-    <script src="/static/js/auth.js"></script>
-    <script src="/static/js/profile.js"></script>
-    <script src="/static/js/classroom.js"></script>
-    <script src="/static/js/quiz.js"></script>
-    <script src="/static/js/gamification.js"></script>
-    <script src="/static/js/homework.js"></script>
-    <script src="/static/js/dashboard.js"></script>
-    <script src="/static/js/voice.js"></script>
-    <script src="/static/js/course-creator.js"></script>
-    <script src="/static/js/visual-lab.js"></script>
+    <script src="/static/js/nova-ai.js?v=4"></script>
+    <script src="/static/js/app.js?v=3"></script>
+    <script src="/static/js/auth.js?v=3"></script>
+    <script src="/static/js/profile.js?v=3"></script>
+    <script src="/static/js/classroom.js?v=3"></script>
+    <script src="/static/js/quiz.js?v=3"></script>
+    <script src="/static/js/gamification.js?v=3"></script>
+    <script src="/static/js/homework.js?v=3"></script>
+    <script src="/static/js/dashboard.js?v=3"></script>
+    <script src="/static/js/voice.js?v=3"></script>
+    <script src="/static/js/course-creator.js?v=3"></script>
+    <script src="/static/js/visual-lab.js?v=3"></script>
+    <script src="/static/js/rl-dashboard.js?v=3"></script>
 </body>
 </html>

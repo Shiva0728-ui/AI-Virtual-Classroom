@@ -5,17 +5,18 @@
 const Dashboard = {
     async load() {
         try {
-            const [overview, recommendations] = await Promise.all([
+            const [overview, recommendations, novaStatus] = await Promise.all([
                 api('/api/progress/overview'),
                 api('/api/recommendations'),
+                api('/api/nova/status')
             ]);
-            this.render(overview, recommendations);
+            this.render(overview, recommendations, novaStatus);
         } catch(err) {
             console.error('Dashboard load error:', err);
         }
     },
 
-    render(overview, recommendations) {
+    render(overview, recommendations, novaStatus) {
         // Greeting
         const hour = new Date().getHours();
         let greeting;
@@ -25,6 +26,14 @@ const Dashboard = {
         
         const name = AppState.user?.full_name || AppState.user?.username || 'Student';
         document.getElementById('dashboard-greeting').textContent = `${greeting}, ${name}! 👋`;
+        
+        // NOVA Insight
+        if (novaStatus) {
+            const insightEl = document.getElementById('dash-nova-insight');
+            const avatarEl = document.getElementById('dash-nova-avatar');
+            if (insightEl) insightEl.textContent = novaStatus.message;
+            if (avatarEl) avatarEl.className = `nova-avatar-sm mood-${novaStatus.mood}`;
+        }
 
         // Stats
         document.getElementById('dash-xp').textContent = overview.xp_total || 0;

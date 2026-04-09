@@ -10,7 +10,15 @@ _env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(_env_path)
 
 # Database
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./ai_classroom.db")
+if os.getenv("DATABASE_URL") and os.getenv("DATABASE_URL").startswith("postgres"):
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+elif os.getenv("VERCEL") == "1" or os.getenv("VERCEL_URL") or os.getenv("VERCEL_REGION"):
+    DATABASE_URL = "sqlite:////tmp/ai_classroom.db"
+else:
+    default_db = "sqlite:///./ai_classroom.db"
+    DATABASE_URL = os.getenv("DATABASE_URL", default_db)
 
 # OpenAI
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")

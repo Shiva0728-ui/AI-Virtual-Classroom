@@ -11,6 +11,7 @@ This engine simulates a REAL teacher:
 7. Gives quizzes at the end of lessons
 8. Generates custom courses from topics or uploaded files
 9. Includes video and image resources in teaching
+10. Returns STRUCTURED JSON for reliable progress tracking
 """
 import json
 import re
@@ -23,77 +24,101 @@ from models import (
     ConversationHistory, StudentProgress, Lesson, Course,
     UserXP, QuizResult, TutorState, LessonStatus
 )
+from jarvis_brain import JarvisBrain
+from rl_engine.rl_inference import RLEngineInference
+
+rl_engine = RLEngineInference.get_instance()
 
 client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
 
 # ─── System Prompts ────────────────────────────────────────────
 
-TUTOR_SYSTEM_PROMPT = """You are an expert, warm, and engaging teacher in an AI Virtual Classroom. Your name is "Professor AI".
+TUTOR_SYSTEM_PROMPT = """You are "JARVIS" — a brilliant, witty, and highly proactive smart teaching assistant.
 
-## YOUR PERSONALITY & VOICE:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+YOUR PERSONALITY (JARVIS MODE)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- You are an advanced AI assistant tailored to the student. You don't just teach; you OBSERVE and ADAPT.
+- Tone: Warm, highly intelligent, slightly witty (like JARVIS from Iron Man or a friendly mentor).
 - You are a REAL teacher who SPEAKS to the student — your text will be read aloud by text-to-speech
-- Talk naturally, conversationally — as if you're in a real classroom standing in front of the student
-- Use phrases like: "Let me show you something cool...", "Now, think about this...", "Imagine you're holding an apple...", "Here's where it gets interesting..."
-- Give REAL-WORLD EXAMPLES with vivid descriptions: "Picture yourself dropping a ball from a building — watch how it speeds up as it falls!"
-- Use short paragraphs — each natural speaking sentence should be its own paragraph for readability
-- Be expressive — show excitement when something is cool, show empathy when something is tricky
-- Use analogies students relate to: games, phones, cooking, sports, movies
+- Talk naturally, conversationally — as if standing in front of the student.
+- Use phrases like: "Sir/Miss, if I may suggest...", "Fascinating progress here...", "Let me project an example..."
+- Give vivid REAL-WORLD examples that paint a picture in the student's mind.
+- If the student seems confused, be incredibly patient and offer a completely different analogy.
 
-## AI-GENERATED VISUALS (VERY IMPORTANT!):
-This platform generates real-time AI visuals to help students understand concepts.
-When teaching a concept that benefits from visual demonstration, include a VISUAL TAG in your response:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+YOUR TEACHING FLOW (FOLLOW STRICTLY!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You MUST follow this structured flow for EVERY concept:
 
-**For animations** (physics, processes, algorithms, anything with motion/change):
-[VISUAL_ANIMATION: brief description of what to animate]
-Examples:
-- [VISUAL_ANIMATION: apple falling from tree showing gravity with acceleration labels]
-- [VISUAL_ANIMATION: planets orbiting the sun in solar system with size labels]
-- [VISUAL_ANIMATION: bubble sort algorithm sorting numbered bars step by step]
-- [VISUAL_ANIMATION: water cycle showing evaporation condensation precipitation with arrows]
-- [VISUAL_ANIMATION: sine wave with labeled amplitude wavelength and frequency]
-- [VISUAL_ANIMATION: photosynthesis process with sunlight water and CO2 converting to glucose]
+**Phase 1 — HOOK** (first message of a lesson):
+  "Hey [name]! Today we're going to explore something fascinating..."
+  Start with a SURPRISING fact, question, or real-world scenario that grabs attention.
 
-**For diagrams** (static concepts, structures, relationships):
-[VISUAL_DIAGRAM: brief description of what to illustrate]
-Examples:
-- [VISUAL_DIAGRAM: plant cell with labeled organelles nucleus mitochondria]
-- [VISUAL_DIAGRAM: food web showing producers consumers decomposers]
-- [VISUAL_DIAGRAM: simple electric circuit with battery resistor and light bulb]
-- [VISUAL_DIAGRAM: human heart with chambers valves and blood flow direction]
+**Phase 2 — TEACH**:
+  - Explain ONE concept using everyday language and analogies FIRST
+  - Then give the formal/technical definition
+  - Show a code example or real scenario to demonstrate
+  - Include a [VISUAL_ANIMATION: ...] or [VISUAL_DIAGRAM: ...] tag
+  - Walk through the visual: "Notice how... That's because..."
 
-INCLUDE AT LEAST ONE VISUAL TAG per major concept you teach. Place it right after explaining the concept.
-The system will automatically generate and display these visuals to the student in real-time.
-These are AI-generated interactive visuals, NOT videos or external images.
+**Phase 3 — CHECK UNDERSTANDING**:
+  - Ask an OPEN-ENDED question: "Okay, now tell me — in your own words, what does X do?"
+  - Or a scenario: "If I gave you Y, what would happen?"
+  - DO NOT give options. Let the student think and answer freely.
+  - END your message with the question. STOP. Wait for their answer.
 
-## YOUR TEACHING FLOW:
-1. **Greet warmly** — "Hey! Today we're going to explore something really fascinating..."
-2. **Hook them** — Start with a question or interesting fact: "Did you know that..."
-3. **Explain simply** — Use everyday language and analogies first, then formal terms
-4. **Show Visual** — "Let me show you what this looks like..." then include [VISUAL_ANIMATION: ...] or [VISUAL_DIAGRAM: ...]
-5. **Walk through the visual** — "Notice how the apple speeds up as it falls? That's acceleration!"
-6. **Give examples** — Real code examples for programming, real scenarios for science
-7. **Check understanding** — "Now here's a question for you..." and ASK something
-8. **Wait for response** — End your message with the question. Don't continue until they answer.
-9. **Give feedback** — Celebrate correct answers enthusiastically! For wrong answers, re-explain kindly with a different example.
-10. **Apply it** — "Here's where this is used in real life..." with another visual if helpful
+**Phase 4 — FEEDBACK** (after student responds):
+  - If CORRECT: "That's EXACTLY right! Great thinking! 🌟" — genuinely celebrate, then show a real-world application
+  - If PARTIALLY correct: "You're on the right track! Let me add to that..." — acknowledge what's right, fill in the gaps
+  - If INCORRECT: "That's a really common misconception! Let me explain it differently..." — be GENTLE, re-explain with a DIFFERENT analogy, then ask a simpler version of the question
+  - If student asks their own question: Answer it helpfully, then continue the flow
 
-## IMPORTANT RULES:
-- NEVER just dump information. Teach interactively, like you're TALKING to the student.
-- After explaining a concept, ALWAYS ask a comprehension question before moving on.
-- When asking a question, end your message with the question and wait for response.
-- Keep paragraphs SHORT — 1-3 sentences max, because your text will be spoken aloud.
-- Format code in markdown code blocks with language specification.
-- If the student seems confused, simplify and use DIFFERENT analogies.
-- Celebrate correct answers: "That's exactly right! Great thinking!"
-- For wrong answers, be gentle: "Not quite, but that's a really common mistake. Let me explain..."
-- ALWAYS include visual tags — visuals make learning 10x more effective!
-- Give vivid real-world examples that paint a picture in the student's mind.
+**Phase 5 — ADVANCE**:
+  - After correct understanding, move to the NEXT concept and repeat phases 2-4
+  - If all concepts are covered, give a SUMMARY of everything learned, congratulate warmly, and suggest the quiz
 
-## RESPONSE FORMAT:
-Use markdown formatting. Use headers, bold, code blocks, and bullet points.
-When asking a question, clearly mark it with the prefix: **Question:**
-When showing code, use proper code blocks.
-For visuals, use the exact format: [VISUAL_ANIMATION: description] or [VISUAL_DIAGRAM: description]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AI-GENERATED VISUALS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Include visual tags to generate real-time AI visuals:
+**For animations**: [VISUAL_ANIMATION: brief description]
+**For diagrams**: [VISUAL_DIAGRAM: brief description]
+Include at least ONE visual per concept. Place it right after explaining the concept.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CRITICAL RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- NEVER dump information. Teach ONE concept at a time, interactively.
+- After explaining a concept, ALWAYS ask a question before moving on.
+- When asking a question, END your message there. DO NOT continue.
+- Keep paragraphs SHORT (1-3 sentences) because text is spoken aloud.
+- Format code in markdown code blocks with language spec.
+- Use markdown: headers, bold, code blocks, bullet points.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RESPONSE FORMAT (MANDATORY!)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+You MUST respond with valid JSON in this exact format:
+```json
+{
+  "message": "Your full teaching message in markdown...",
+  "phase": "teaching|questioning|feedback|summary",
+  "is_correct": true | false | null,
+  "concept_mastered": true | false,
+  "encouragement": "high|medium|low",
+  "next_action": "wait_for_answer|continue_teaching|lesson_complete"
+}
+```
+
+- `message`: Your full teaching response (markdown formatted)
+- `phase`: Current teaching phase
+- `is_correct`: Whether the student's last answer was correct (null if not evaluating an answer)
+- `concept_mastered`: Whether the current concept is now understood
+- `encouragement`: How much encouragement the student needs
+- `next_action`: What happens next
+
+Return ONLY the JSON object. No other text outside the JSON.
 """
 
 
@@ -123,13 +148,13 @@ Provide:
 3. Suggestions for further learning
 
 Return as JSON:
-{
+{{
     "score": <number>,
     "feedback": "<detailed feedback>",
     "strengths": ["<strength1>", "<strength2>"],
     "improvements": ["<improvement1>", "<improvement2>"],
     "suggestions": "<what to study next>"
-}
+}}
 """
 
 
@@ -227,7 +252,7 @@ Return ONLY valid JSON. No markdown, no explanation.
 # ─── Tutor Engine Class ───────────────────────────────────────
 
 class TutorEngine:
-    """Main AI Tutor that teaches like a real teacher."""
+    """Main AI Tutor that teaches like a real teacher with structured JSON responses."""
 
     @staticmethod
     def _call_ai(messages: list, temperature: float = 0.7, max_tokens: int = 2000) -> str:
@@ -249,20 +274,101 @@ class TutorEngine:
 
     @staticmethod
     def _fallback_response(messages: list) -> str:
-        """Fallback when API is not available."""
-        last_msg = messages[-1]["content"] if messages else ""
-        return (
-            "🎓 **Professor AI is here!**\n\n"
-            "I'd love to teach you, but my AI brain needs an API key to work at full power! "
-            "Please add your OpenAI API key in the `.env` file:\n\n"
-            "```\nOPENAI_API_KEY=your-key-here\n```\n\n"
-            "Once configured, I'll be able to:\n"
-            "- 📚 Teach you interactively\n"
-            "- ❓ Ask comprehension questions\n"
-            "- ✅ Grade your answers\n"
-            "- 🧠 Adapt to your learning pace\n\n"
-            "*In the meantime, the lesson content and quizzes still work!*"
-        )
+        """Fallback when API is not available — returns structured JSON."""
+        return json.dumps({
+            "message": (
+                "🎓 **Professor AI is here!**\n\n"
+                "I'd love to teach you, but my AI brain needs an API key to work at full power! "
+                "Please add your OpenAI API key in the `.env` file:\n\n"
+                "```\nOPENAI_API_KEY=your-key-here\n```\n\n"
+                "Once configured, I'll be able to:\n"
+                "- 📚 Teach you interactively\n"
+                "- ❓ Ask comprehension questions\n"
+                "- ✅ Grade your answers\n"
+                "- 🧠 Adapt to your learning pace\n\n"
+                "*In the meantime, the lesson content and quizzes still work!*"
+            ),
+            "phase": "teaching",
+            "is_correct": None,
+            "concept_mastered": False,
+            "encouragement": "medium",
+            "next_action": "continue_teaching"
+        })
+
+    @staticmethod
+    def _parse_tutor_response(raw: str) -> dict:
+        """Parse the structured JSON response from the tutor AI.
+        Falls back gracefully if the AI returns plain text instead of JSON."""
+        try:
+            text = raw.strip()
+            # Remove markdown code fences if present
+            if text.startswith("```"):
+                lines = text.split("\n")
+                lines = lines[1:]  # Remove opening fence
+                if lines and lines[-1].strip() == "```":
+                    lines = lines[:-1]
+                text = "\n".join(lines)
+            
+            # Try to find JSON object
+            brace_start = text.find("{")
+            if brace_start >= 0:
+                # Find the matching closing brace
+                depth = 0
+                for i in range(brace_start, len(text)):
+                    if text[i] == "{":
+                        depth += 1
+                    elif text[i] == "}":
+                        depth -= 1
+                        if depth == 0:
+                            json_str = text[brace_start:i + 1]
+                            return json.loads(json_str)
+            
+            return json.loads(text)
+        except (json.JSONDecodeError, Exception):
+            # Fallback: wrap plain text in structured format
+            # Use heuristics for phase detection
+            is_correct = None
+            phase = "teaching"
+            concept_mastered = False
+            next_action = "continue_teaching"
+            
+            lower = raw.lower()
+            
+            # Detect if this is feedback on a correct answer
+            correct_markers = ["exactly right", "correct", "great job", "well done", 
+                             "perfect", "excellent", "that's right", "spot on", "nice work",
+                             "absolutely", "you got it", "brilliant", "🌟", "✅"]
+            incorrect_markers = ["not quite", "not exactly", "incorrect", "wrong",
+                               "common mistake", "close but", "try again", "let me explain",
+                               "actually", "misconception"]
+            
+            if any(m in lower for m in correct_markers):
+                is_correct = True
+                phase = "feedback"
+                concept_mastered = True
+            elif any(m in lower for m in incorrect_markers):
+                is_correct = False
+                phase = "feedback"
+                concept_mastered = False
+            
+            # Detect if asking a question
+            if raw.rstrip().endswith("?"):
+                phase = "questioning"
+                next_action = "wait_for_answer"
+            
+            # Detect lesson complete
+            if "lesson complete" in lower or "lesson is complete" in lower or "completed the lesson" in lower:
+                next_action = "lesson_complete"
+                phase = "summary"
+            
+            return {
+                "message": raw,
+                "phase": phase,
+                "is_correct": is_correct,
+                "concept_mastered": concept_mastered,
+                "encouragement": "high" if is_correct else ("medium" if is_correct is None else "low"),
+                "next_action": next_action
+            }
 
     @staticmethod
     def start_lesson(db: Session, user_id: int, lesson_id: int) -> dict:
@@ -304,29 +410,30 @@ class TutorEngine:
 Course: {course.title if course else 'General'}
 Lesson: {lesson.title}
 Lesson Content: {lesson.content}
-Key Concepts to Teach: {json.dumps(concepts)}
+Key Concepts to Teach (in order): {json.dumps(concepts)}
 Code Examples Available: {json.dumps(examples)}
 
-START teaching! Begin with a warm introduction to the topic. Explain what they'll learn and WHY it matters. 
-Then teach the FIRST concept: "{concepts[0] if concepts else lesson.title}"
+START teaching! Follow the structured flow:
+1. Give a warm, exciting introduction — hook them with WHY this topic matters
+2. Teach the FIRST concept: "{concepts[0] if concepts else lesson.title}" using a real-world analogy
+3. Include a [VISUAL_ANIMATION: ...] or [VISUAL_DIAGRAM: ...] tag to demonstrate visually
+4. Walk through a simple example
+5. End with an open-ended comprehension question — then STOP and wait
 
-IMPORTANT: You MUST include at least one [VISUAL_ANIMATION: ...] or [VISUAL_DIAGRAM: ...] tag in your response 
-to generate an AI visual that demonstrates the concept. For example:
-[VISUAL_ANIMATION: {concepts[0] if concepts else lesson.title} demonstration with labels]
-Place the visual tag right after explaining the concept.
+Remember: You are a real teacher, not a textbook. Make it conversational and fun!
 
-After explaining the first concept with a simple example, ask a comprehension question to check understanding.
-Remember: Be like a real tutor - warm, engaging, step-by-step!"""
+RESPOND WITH THE MANDATORY JSON FORMAT."""
 
         messages = [
             {"role": "system", "content": TUTOR_SYSTEM_PROMPT},
             {"role": "user", "content": intro_prompt}
         ]
 
-        response = TutorEngine._call_ai(messages)
+        raw_response = TutorEngine._call_ai(messages, max_tokens=2500)
+        parsed = TutorEngine._parse_tutor_response(raw_response)
 
-        # Save conversation
-        TutorEngine._save_message(db, user_id, lesson_id, "assistant", response, "teaching")
+        # Save conversation (store just the message text)
+        TutorEngine._save_message(db, user_id, lesson_id, "assistant", parsed["message"], "teaching")
 
         # Update progress
         progress.tutor_state = TutorState.ASKING_QUESTION.value
@@ -335,15 +442,20 @@ Remember: Be like a real tutor - warm, engaging, step-by-step!"""
         db.commit()
 
         return {
-            "message": response,
+            "message": parsed["message"],
+            "phase": parsed.get("phase", "teaching"),
+            "next_action": parsed.get("next_action", "wait_for_answer"),
+            "encouragement": parsed.get("encouragement", "high"),
             "lesson": {
                 "id": lesson.id,
                 "title": lesson.title,
                 "course": course.title if course else "",
                 "total_concepts": len(concepts),
                 "current_concept": 0,
+                "concepts": concepts,
             },
             "tutor_state": progress.tutor_state,
+            "understanding": 0,
         }
 
     @staticmethod
@@ -375,50 +487,64 @@ Remember: Be like a real tutor - warm, engaging, step-by-step!"""
         current_idx = progress.current_concept_index
         total_concepts = len(concepts)
         
-        context = f"""Lesson: {lesson.title}
-Course: {course.title if course else 'General'}
-Full lesson content: {lesson.content}
-All concepts: {json.dumps(concepts)}
-All examples: {json.dumps(examples)}
-Current concept index: {current_idx} of {total_concepts - 1}
-Current concept: {concepts[current_idx] if current_idx < total_concepts else 'All covered'}
-Questions asked so far: {progress.questions_asked}
-Correct answers so far: {progress.correct_answers}
-Understanding level: {progress.understanding_level}%
+        next_concept = concepts[current_idx + 1] if current_idx + 1 < total_concepts else "ALL CONCEPTS COVERED"
+        current_concept = concepts[current_idx] if current_idx < total_concepts else "All covered"
+        
+        # --- Reinforcement Learning Engine Action ---
+        progress_dict = {
+            "understanding": progress.understanding_level,
+            "questions_asked": progress.questions_asked,
+            "correct_answers": progress.correct_answers
+        }
+        rl_action, rl_mode, rl_action_idx = rl_engine.get_instructional_action(progress_dict, current_idx)
+        
+        context = f"""LESSON CONTEXT:
+- Lesson: {lesson.title}
+- Course: {course.title if course else 'General'}
+- Full lesson content: {lesson.content}
+- All concepts (in teaching order): {json.dumps(concepts)}
+- Code examples: {json.dumps(examples)}
+- Currently teaching concept #{current_idx + 1} of {total_concepts}: "{current_concept}"
+- Next concept after this: "{next_concept}"
+- Student's track record: {progress.correct_answers} correct out of {progress.questions_asked} questions
+- Current understanding: {progress.understanding_level}%
 
-The student just responded to your previous question/message. 
-Evaluate their response, then:
-1. If they answered correctly → praise them genuinely, then teach the NEXT concept ({concepts[current_idx + 1] if current_idx + 1 < total_concepts else 'LESSON COMPLETE - give a summary and congratulate!'})
-2. If they answered incorrectly → kindly explain why, re-teach the concept with a different example, then ask again
-3. If they're asking a question → answer it helpfully, then continue teaching
-4. After teaching a new concept, ALWAYS ask a comprehension question
+THE STUDENT JUST SAID: "{student_message}"
 
-If all concepts are covered (index >= {total_concepts - 1} and they answered correctly), congratulate them and tell them the lesson is complete! Suggest they take the quiz.
+*** RL ENGINE MANDATE ({rl_mode.upper()} Agent selected Action {rl_action_idx}) ***
+{rl_action}
+**********************************
 
-REMEMBER: When teaching a NEW concept, include a [VISUAL_ANIMATION: ...] or [VISUAL_DIAGRAM: ...] tag to generate an AI visual for that concept.
+YOUR JOB:
+1. EVALUATE their response — is it correct, partially correct, or incorrect?
+2. Observe the RL ENGINE MANDATE above and perform that instructional action exactly.
+3. If they're asking their own question → Answer it helpfully, then return to the mandated action.
+4. If ALL concepts are now mastered (concept #{current_idx + 1} is correct AND it's the last concept) → Give a warm LESSON SUMMARY, congratulate them, and tell them to take the quiz! Set next_action to "lesson_complete".
 
-Student's message: {student_message}"""
+RESPOND WITH THE MANDATORY JSON FORMAT."""
 
         messages = [{"role": "system", "content": TUTOR_SYSTEM_PROMPT}]
         for msg in history[:-1]:  # Exclude the one we just saved
             messages.append({"role": msg["role"], "content": msg["content"]})
         messages.append({"role": "user", "content": context})
 
-        response = TutorEngine._call_ai(messages, max_tokens=2500)
+        raw_response = TutorEngine._call_ai(messages, max_tokens=2500)
+        parsed = TutorEngine._parse_tutor_response(raw_response)
 
         # Save AI response
-        TutorEngine._save_message(db, user_id, lesson_id, "assistant", response, "teaching")
+        TutorEngine._save_message(db, user_id, lesson_id, "assistant", parsed["message"], "teaching")
 
-        # Update progress - detect if answer was correct (simple heuristic + AI can be more nuanced)
+        # Update progress based on structured response
         progress.questions_asked += 1
-        is_likely_correct = any(marker in response.lower() for marker in 
-                               ["correct", "right", "exactly", "well done", "great job", "perfect", "excellent", "✅", "awesome"])
         
-        if is_likely_correct:
+        is_correct = parsed.get("is_correct", None)
+        concept_mastered = parsed.get("concept_mastered", False)
+        
+        if is_correct is True:
             progress.correct_answers += 1
-            if current_idx < total_concepts - 1:
+            if concept_mastered and current_idx < total_concepts - 1:
                 progress.current_concept_index += 1
-            else:
+            elif concept_mastered and current_idx >= total_concepts - 1:
                 progress.status = LessonStatus.COMPLETED.value
                 progress.completed_at = datetime.now(timezone.utc)
 
@@ -426,11 +552,29 @@ Student's message: {student_message}"""
         if progress.questions_asked > 0:
             progress.understanding_level = (progress.correct_answers / progress.questions_asked) * 100
 
-        progress.tutor_state = TutorState.ASKING_QUESTION.value
+        # Update tutor state based on phase
+        phase = parsed.get("phase", "teaching")
+        if phase == "questioning":
+            progress.tutor_state = TutorState.ASKING_QUESTION.value
+        elif phase == "feedback":
+            progress.tutor_state = TutorState.GIVING_FEEDBACK.value
+        elif phase == "teaching":
+            progress.tutor_state = TutorState.TEACHING.value
+        
         db.commit()
 
+        lesson_complete = (
+            parsed.get("next_action") == "lesson_complete" or 
+            progress.status == LessonStatus.COMPLETED.value
+        )
+
         return {
-            "message": response,
+            "message": parsed["message"],
+            "phase": parsed.get("phase", "teaching"),
+            "is_correct": is_correct,
+            "concept_mastered": concept_mastered,
+            "encouragement": parsed.get("encouragement", "medium"),
+            "next_action": parsed.get("next_action", "continue_teaching"),
             "progress": {
                 "current_concept": progress.current_concept_index,
                 "total_concepts": total_concepts,
@@ -440,7 +584,7 @@ Student's message: {student_message}"""
                 "status": progress.status,
             },
             "tutor_state": progress.tutor_state,
-            "lesson_complete": progress.status == LessonStatus.COMPLETED.value,
+            "lesson_complete": lesson_complete,
         }
 
     @staticmethod

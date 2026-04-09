@@ -8,8 +8,25 @@ from datetime import datetime, timezone
 import enum
 
 from config import DATABASE_URL
+import os
+import shutil
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+if DATABASE_URL == "sqlite:////tmp/ai_classroom.db":
+    src = os.path.join(os.path.dirname(os.path.dirname(__file__)), "ai_classroom.db")
+    dst = "/tmp/ai_classroom.db"
+    if os.path.exists(src) and not os.path.exists(dst):
+        try:
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copy2(src, dst)
+            print("Successfully transferred database to writable /tmp volume on module load.")
+        except Exception as e:
+            print(f"CRITICAL SQLITE COPY ERROR: {e}")
+
+if DATABASE_URL.startswith("sqlite"):
+    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+else:
+    # Use standard pooling for Postgres/Supabase
+    engine = create_engine(DATABASE_URL, pool_size=5, max_overflow=10)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -56,6 +73,8 @@ class User(Base):
     conversations = relationship("ConversationHistory", back_populates="user")
     quiz_results = relationship("QuizResult", back_populates="user")
     homework_submissions = relationship("HomeworkSubmission", back_populates="user")
+    insights = relationship("StudentInsight", back_populates="user")
+    study_sessions = relationship("StudySession", back_populates="user")
     children = relationship("User", backref="parent", remote_side=[id], foreign_keys=[parent_id])
 
 
@@ -222,6 +241,32 @@ class LessonRecommendation(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+# ─── JARVIS Intelligence Models ────────────────────────────────
+class StudentInsight(Base):
+    __tablename__ = "student_insights"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    insight_type = Column(String(50), nullable=False)  # strength, weakness, pattern, motivation
+    content = Column(Text, nullable=False)
+    confidence = Column(Float, default=1.0)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    user = relationship("User", back_populates="insights")
+
+
+class StudySession(Base):
+    __tablename__ = "study_sessions"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    session_date = Column(String(10), nullable=False)  # YYYY-MM-DD
+    duration_minutes = Column(Integer, default=0)
+    focus_score = Column(Integer, default=100)  # 0-100
+    concepts_mastered = Column(Integer, default=0)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    
+    user = relationship("User", back_populates="study_sessions")
+
+
 # ─── Database Initialization ──────────────────────────────────
 def init_db():
     Base.metadata.create_all(bind=engine)
@@ -239,7 +284,27 @@ def seed_data():
     """Seed the database with initial courses, lessons and badges."""
     db = SessionLocal()
     try:
-        # Check if already seeded
+        # Seed test user for ephemeral serverless environments
+        if db.query(User).filter(User.username == "test").count() == 0:
+            import bcrypt
+            pwd = "test".encode('utf-8')
+            hashed = bcrypt.hashpw(pwd, bcrypt.gensalt()).decode('utf-8')
+            test_user = User(
+                username="test",
+                email="test@example.com",
+                password_hash=hashed,
+                full_name="Dissertation Tester",
+                role="student",
+                avatar="🧑‍🎓"
+            )
+            db.add(test_user)
+            db.flush()
+            xp = UserXP(user_id=test_user.id)
+            db.add(xp)
+            db.commit()
+            print("✅ Test user seeded successfully.")
+
+        # Check if already seeded with content
         if db.query(Course).count() > 0:
             return
 
@@ -406,8 +471,25 @@ def seed_data():
         for badge_data in badges_data:
             db.add(Badge(**badge_data))
 
+        # ── Homework Assignments ──
+        # Get course IDs for linking
+        python_course = db.query(Course).filter(Course.title == "Python Programming").first()
+        ml_course = db.query(Course).filter(Course.title == "Machine Learning Basics").first()
+        web_course = db.query(Course).filter(Course.title == "Web Development").first()
+
+        homework_data = [
+            {"title": "Python Variables Challenge", "description": "Create a program that stores your name, age, and favorite subject in variables, then prints a formatted introduction using f-strings.", "difficulty": "easy", "max_score": 100, "course_id": python_course.id if python_course else None, "assigned_by": 1},
+            {"title": "Loop Patterns", "description": "Write a program that prints a triangle pattern using nested for loops. The triangle should have 5 rows, with each row having an increasing number of stars (*).  ", "difficulty": "medium", "max_score": 100, "course_id": python_course.id if python_course else None, "assigned_by": 1},
+            {"title": "Build a Calculator", "description": "Create a simple calculator that takes two numbers and an operator (+, -, *, /) from the user. Handle division by zero gracefully and use functions for each operation.", "difficulty": "medium", "max_score": 100, "course_id": python_course.id if python_course else None, "assigned_by": 1},
+            {"title": "ML Concepts Essay", "description": "Write a short essay (200-300 words) explaining the difference between supervised and unsupervised learning. Include at least 2 real-world examples for each type.", "difficulty": "easy", "max_score": 100, "course_id": ml_course.id if ml_course else None, "assigned_by": 1},
+            {"title": "Personal Portfolio Page", "description": "Create a simple HTML page with CSS styling that serves as your personal portfolio. Include: a header with your name, an about section, a skills list, and a contact section.", "difficulty": "medium", "max_score": 100, "course_id": web_course.id if web_course else None, "assigned_by": 1},
+        ]
+
+        for hw_data in homework_data:
+            db.add(Homework(**hw_data))
+
         db.commit()
-        print("✅ Database seeded with courses, lessons, and badges!")
+        print("✅ Database seeded with courses, lessons, badges, and homework!")
 
     except Exception as e:
         db.rollback()

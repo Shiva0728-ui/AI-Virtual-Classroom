@@ -82,6 +82,12 @@ const App = {
         document.getElementById('main-app').classList.add('active');
         
         this.updateSidebar();
+        
+        // Initialize NOVA AI Teacher
+        if (typeof NovaAI !== 'undefined') {
+            NovaAI.init();
+        }
+        
         this.navigate('dashboard');
     },
 
@@ -130,6 +136,11 @@ const App = {
             p.classList.toggle('active', p.id === `page-${page}`);
         });
         
+        // Trigger ambient JARVIS voice if enabled
+        if (typeof Voice !== 'undefined') {
+            Voice.ambientNarration(page);
+        }
+        
         // Load page data
         switch(page) {
             case 'dashboard': Dashboard.load(); break;
@@ -143,6 +154,7 @@ const App = {
             case 'teacher-dashboard': TeacherDashboard.load(); break;
             case 'parent-report': ParentReport.load(); break;
             case 'profile': Profile.load(); break;
+            case 'rl-dashboard': RLDashboard.loadStats(); break;
         }
     },
 

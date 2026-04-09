@@ -1,11 +1,16 @@
 /* ═══════════════════════════════════════════════════════════════
-   Classroom & Tutor Module
+   Classroom & Tutor Module — Futuristic Real-Teacher Experience
    The interactive teaching interface - the heart of the app
    ═══════════════════════════════════════════════════════════════ */
 
 const Classroom = {
     currentLessonId: null,
     isTeaching: false,
+    currentPhase: 'idle',        // teaching | questioning | feedback | summary
+    conceptsList: [],            // All concepts for the lesson
+    currentConceptIndex: 0,
+    totalConcepts: 0,
+    understanding: 0,
 
     // Start a lesson - tutor begins teaching
     async startLesson(lessonId) {
@@ -16,7 +21,10 @@ const Classroom = {
         const chat = document.getElementById('classroom-chat');
         chat.innerHTML = '';
         
-        // Show loading
+        // Show cinematic intro
+        this.showLessonIntro();
+        
+        // Show typing animation
         this.addTypingIndicator();
         
         try {
@@ -26,15 +34,26 @@ const Classroom = {
             });
             
             this.removeTypingIndicator();
+            this.hideLessonIntro();
             
-            // Update header
+            // Setup lesson data
             if (data.lesson) {
                 document.getElementById('classroom-title').textContent = data.lesson.title;
                 document.getElementById('classroom-course').textContent = data.lesson.course;
-                this.updateProgress(data.lesson.current_concept, data.lesson.total_concepts);
+                this.conceptsList = data.lesson.concepts || [];
+                this.totalConcepts = data.lesson.total_concepts || 0;
+                this.currentConceptIndex = data.lesson.current_concept || 0;
+                this.understanding = data.understanding || 0;
+                
+                this.updateProgress(this.currentConceptIndex, this.totalConcepts);
+                this.updateUnderstandingMeter(0);
+                this.renderConceptCards();
             }
             
-            // Show tutor message
+            // Update phase indicator
+            this.setPhase(data.phase || 'teaching');
+            
+            // Show tutor message with entrance animation
             this.addMessage('tutor', data.message);
             this.isTeaching = true;
             
@@ -43,15 +62,15 @@ const Classroom = {
                 Voice.speak(data.message);
             }
             
-            // Scroll to bottom
             this.scrollToBottom();
             
-            // Award XP notification
-            App.toast('+10 XP for starting a lesson!', 'xp');
+            // Animated XP notification
+            this.showXPGain(10, 'Started a lesson!');
             App.updateXPDisplay();
             
         } catch(err) {
             this.removeTypingIndicator();
+            this.hideLessonIntro();
             this.addMessage('tutor', '❌ Failed to start lesson. Please try again.');
             App.toast('Failed to start lesson', 'error');
         }
@@ -75,8 +94,9 @@ const Classroom = {
         this.addMessage('student', message);
         this.scrollToBottom();
         
-        // Show typing indicator
+        // Show typing indicator with avatar animation
         this.addTypingIndicator();
+        this.setAvatarState('thinking');
         
         // Disable input while waiting
         const sendBtn = document.getElementById('send-btn');
@@ -89,28 +109,42 @@ const Classroom = {
             });
             
             this.removeTypingIndicator();
+            this.setAvatarState('idle');
+            
+            // Update phase
+            this.setPhase(data.phase || 'teaching');
             
             // Show tutor response
             this.addMessage('tutor', data.message);
             
+            // Handle structured response
+            if (data.is_correct === true) {
+                this.showCorrectFeedback();
+                this.showXPGain(10, 'Correct answer!');
+            } else if (data.is_correct === false) {
+                this.showEncouragement();
+                this.showXPGain(3, 'Keep trying!');
+            }
+            
             // Update progress
             if (data.progress) {
+                this.currentConceptIndex = data.progress.current_concept;
+                this.understanding = data.progress.understanding;
                 this.updateProgress(data.progress.current_concept, data.progress.total_concepts);
+                this.updateUnderstandingMeter(data.progress.understanding);
                 
-                if (data.progress.correct_answers > 0) {
-                    // Check if this was a correct answer
-                    const lastCorrect = data.progress.correct_answers;
-                    if (lastCorrect > 0) {
-                        App.updateXPDisplay();
-                    }
+                // Update concept cards
+                if (data.concept_mastered) {
+                    this.markConceptMastered(data.progress.current_concept - 1);
                 }
+                
+                App.updateXPDisplay();
             }
             
             // Check if lesson complete
             if (data.lesson_complete) {
-                App.toast('🎉 Lesson Complete! +50 XP', 'xp');
-                App.updateXPDisplay();
-                this.showLessonCompleteButton();
+                this.setPhase('summary');
+                this.showLessonComplete();
             }
             
             // Auto-speak
@@ -122,6 +156,7 @@ const Classroom = {
             
         } catch(err) {
             this.removeTypingIndicator();
+            this.setAvatarState('idle');
             this.addMessage('tutor', 'Sorry, I had trouble processing that. Could you try again? 🤔');
         } finally {
             sendBtn.disabled = false;
@@ -129,11 +164,235 @@ const Classroom = {
         }
     },
 
+    // ─── Phase System ─────────────────────────────────────────
+    setPhase(phase) {
+        this.currentPhase = phase;
+        const indicator = document.getElementById('phase-indicator');
+        if (!indicator) return;
+        
+        const phases = {
+            teaching:    { icon: '📚', label: 'Teaching', color: '#6366f1' },
+            questioning: { icon: '❓', label: 'Checking Understanding', color: '#f59e0b' },
+            feedback:    { icon: '💬', label: 'Giving Feedback', color: '#10b981' },
+            summary:     { icon: '🏆', label: 'Lesson Complete!', color: '#ef4444' },
+        };
+        
+        const p = phases[phase] || phases.teaching;
+        indicator.innerHTML = `<span class="phase-icon">${p.icon}</span><span class="phase-label">${p.label}</span>`;
+        indicator.style.setProperty('--phase-color', p.color);
+        indicator.classList.add('phase-pulse');
+        setTimeout(() => indicator.classList.remove('phase-pulse'), 600);
+    },
+
+    // ─── Understanding Meter (Circular SVG) ────────────────────
+    updateUnderstandingMeter(percent) {
+        const circle = document.getElementById('understanding-circle');
+        const text = document.getElementById('understanding-text');
+        if (!circle || !text) return;
+        
+        const circumference = 2 * Math.PI * 45; // radius = 45
+        const offset = circumference - (percent / 100) * circumference;
+        circle.style.strokeDasharray = circumference;
+        circle.style.strokeDashoffset = offset;
+        text.textContent = `${Math.round(percent)}%`;
+        
+        // Color based on understanding
+        if (percent >= 80) {
+            circle.style.stroke = '#10b981'; // green
+        } else if (percent >= 50) {
+            circle.style.stroke = '#f59e0b'; // amber
+        } else {
+            circle.style.stroke = '#6366f1'; // purple
+        }
+    },
+
+    // ─── Concept Progress Cards ────────────────────────────────
+    renderConceptCards() {
+        const container = document.getElementById('concept-cards');
+        if (!container) return;
+        
+        container.innerHTML = this.conceptsList.map((concept, i) => `
+            <div class="concept-card ${i < this.currentConceptIndex ? 'mastered' : (i === this.currentConceptIndex ? 'active' : '')}" 
+                 id="concept-card-${i}">
+                <div class="concept-num">${i + 1}</div>
+                <div class="concept-name">${this.escapeHtml(concept)}</div>
+                <div class="concept-status">
+                    ${i < this.currentConceptIndex ? '✅' : (i === this.currentConceptIndex ? '📖' : '🔒')}
+                </div>
+            </div>
+        `).join('');
+    },
+
+    markConceptMastered(index) {
+        const card = document.getElementById(`concept-card-${index}`);
+        if (card) {
+            card.classList.add('mastered');
+            card.classList.remove('active');
+            card.querySelector('.concept-status').textContent = '✅';
+            
+            // Glow animation
+            card.classList.add('concept-glow');
+            setTimeout(() => card.classList.remove('concept-glow'), 1500);
+        }
+        
+        // Mark next as active
+        const nextCard = document.getElementById(`concept-card-${index + 1}`);
+        if (nextCard) {
+            nextCard.classList.add('active');
+            nextCard.querySelector('.concept-status').textContent = '📖';
+        }
+    },
+
+    // ─── Visual Feedback Effects ──────────────────────────────
+    showCorrectFeedback() {
+        // Spawn celebration particles
+        this.spawnParticles('correct');
+        
+        // Flash the understanding meter green
+        const meter = document.getElementById('understanding-meter');
+        if (meter) {
+            meter.classList.add('meter-correct');
+            setTimeout(() => meter.classList.remove('meter-correct'), 1000);
+        }
+    },
+
+    showEncouragement() {
+        // Gentle pulse on the chat area
+        const chat = document.getElementById('classroom-chat');
+        if (chat) {
+            chat.classList.add('encourage-pulse');
+            setTimeout(() => chat.classList.remove('encourage-pulse'), 800);
+        }
+    },
+
+    showXPGain(amount, reason) {
+        const popup = document.createElement('div');
+        popup.className = 'xp-popup';
+        popup.innerHTML = `<span class="xp-amount">+${amount} XP</span><span class="xp-reason">${reason}</span>`;
+        document.body.appendChild(popup);
+        
+        // Animate up and fade
+        requestAnimationFrame(() => {
+            popup.classList.add('xp-popup-animate');
+        });
+        
+        setTimeout(() => popup.remove(), 2500);
+    },
+
+    spawnParticles(type) {
+        const container = document.getElementById('particle-container');
+        if (!container) return;
+        
+        const colors = type === 'correct' 
+            ? ['#10b981', '#34d399', '#6ee7b7', '#fbbf24', '#fcd34d']
+            : ['#6366f1', '#818cf8', '#a5b4fc'];
+        
+        for (let i = 0; i < 20; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'celebration-particle';
+            particle.style.left = `${30 + Math.random() * 40}%`;
+            particle.style.top = `${30 + Math.random() * 40}%`;
+            particle.style.background = colors[Math.floor(Math.random() * colors.length)];
+            particle.style.setProperty('--dx', `${(Math.random() - 0.5) * 200}px`);
+            particle.style.setProperty('--dy', `${-Math.random() * 200 - 50}px`);
+            container.appendChild(particle);
+            
+            setTimeout(() => particle.remove(), 1500);
+        }
+    },
+
+    // ─── Teacher Avatar ───────────────────────────────────────
+    setAvatarState(state) {
+        const avatar = document.getElementById('teacher-avatar');
+        if (!avatar) return;
+        
+        avatar.classList.remove('avatar-speaking', 'avatar-thinking', 'avatar-celebrating');
+        if (state === 'speaking') avatar.classList.add('avatar-speaking');
+        else if (state === 'thinking') avatar.classList.add('avatar-thinking');
+        else if (state === 'celebrating') avatar.classList.add('avatar-celebrating');
+    },
+
+    // ─── Cinematic Lesson Intro ───────────────────────────────
+    showLessonIntro() {
+        const overlay = document.getElementById('lesson-intro-overlay');
+        if (overlay) {
+            overlay.classList.add('active');
+            overlay.innerHTML = `
+                <div class="intro-content">
+                    <div class="intro-rings">
+                        <div class="intro-ring ring-1"></div>
+                        <div class="intro-ring ring-2"></div>
+                        <div class="intro-ring ring-3"></div>
+                    </div>
+                    <div class="intro-icon">🎓</div>
+                    <div class="intro-text">Preparing your lesson...</div>
+                    <div class="intro-sub">Professor AI is getting ready</div>
+                </div>
+            `;
+        }
+    },
+
+    hideLessonIntro() {
+        const overlay = document.getElementById('lesson-intro-overlay');
+        if (overlay) {
+            overlay.classList.add('fade-out');
+            setTimeout(() => {
+                overlay.classList.remove('active', 'fade-out');
+                overlay.innerHTML = '';
+            }, 500);
+        }
+    },
+
+    // ─── Lesson Complete ──────────────────────────────────────
+    showLessonComplete() {
+        this.showXPGain(50, 'Lesson Complete!');
+        App.updateXPDisplay();
+        
+        const chat = document.getElementById('classroom-chat');
+        const div = document.createElement('div');
+        div.className = 'chat-message tutor lesson-complete-card';
+        div.innerHTML = `
+            <div class="chat-avatar">🎉</div>
+            <div class="chat-bubble lesson-complete-bubble">
+                <div class="complete-header">
+                    <div class="complete-trophy">🏆</div>
+                    <h3>Lesson Complete!</h3>
+                </div>
+                <div class="complete-stats">
+                    <div class="stat-item">
+                        <div class="stat-value">${Math.round(this.understanding)}%</div>
+                        <div class="stat-label">Understanding</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value">+50</div>
+                        <div class="stat-label">XP Earned</div>
+                    </div>
+                </div>
+                <p>Great job! Ready to test your knowledge?</p>
+                <div class="complete-actions">
+                    <button class="btn btn-primary btn-glow" onclick="Classroom.takeQuiz()">
+                        <i class="fas fa-clipboard-question"></i> Take the Quiz
+                    </button>
+                    <button class="btn btn-secondary" onclick="App.navigate('courses')">
+                        <i class="fas fa-book"></i> More Lessons
+                    </button>
+                </div>
+            </div>
+        `;
+        chat.appendChild(div);
+        this.scrollToBottom();
+        
+        // Spawn lots of celebration particles
+        for (let i = 0; i < 3; i++) {
+            setTimeout(() => this.spawnParticles('correct'), i * 300);
+        }
+    },
+
     // Add a message to the chat
     addMessage(role, content) {
         const chat = document.getElementById('classroom-chat');
         const div = document.createElement('div');
-        div.className = `chat-message ${role}`;
+        div.className = `chat-message ${role} message-enter`;
         
         const avatar = role === 'tutor' ? '🎓' : (AppState.user?.avatar || '🧑‍🎓');
         let renderedContent;
@@ -151,6 +410,11 @@ const Classroom = {
         `;
         
         chat.appendChild(div);
+        
+        // Trigger entrance animation
+        requestAnimationFrame(() => {
+            div.classList.add('message-visible');
+        });
         
         // Highlight code blocks
         if (role === 'tutor' && typeof hljs !== 'undefined') {
@@ -329,7 +593,7 @@ const Classroom = {
         
         // Add visual placeholder
         const div = document.createElement('div');
-        div.className = 'chat-message tutor';
+        div.className = 'chat-message tutor message-enter';
         div.innerHTML = `
             <div class="chat-avatar">🎓</div>
             <div class="chat-bubble">
@@ -342,6 +606,7 @@ const Classroom = {
                 </div>
             </div>`;
         chat.appendChild(div);
+        requestAnimationFrame(() => div.classList.add('message-visible'));
         this.scrollToBottom();
         
         // Generate
@@ -357,11 +622,12 @@ const Classroom = {
         div.className = 'chat-message tutor';
         div.id = 'typing-message';
         div.innerHTML = `
-            <div class="chat-avatar">🎓</div>
+            <div class="chat-avatar avatar-thinking">🎓</div>
             <div class="typing-indicator">
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
                 <div class="typing-dot"></div>
+                <span class="typing-text">Professor AI is thinking...</span>
             </div>
         `;
         chat.appendChild(div);
@@ -374,30 +640,11 @@ const Classroom = {
     },
 
     updateProgress(current, total) {
-        document.getElementById('classroom-concept-num').textContent = `${current + 1}/${total}`;
+        const numEl = document.getElementById('classroom-concept-num');
+        if (numEl) numEl.textContent = `${current + 1}/${total}`;
         const percent = total > 0 ? ((current + 1) / total) * 100 : 0;
-        document.getElementById('classroom-progress-fill').style.width = `${Math.min(percent, 100)}%`;
-    },
-
-    showLessonCompleteButton() {
-        const chat = document.getElementById('classroom-chat');
-        const div = document.createElement('div');
-        div.className = 'chat-message tutor';
-        div.innerHTML = `
-            <div class="chat-avatar">🎉</div>
-            <div class="chat-bubble" style="text-align: center;">
-                <h3>🏆 Lesson Complete!</h3>
-                <p>Great job! Ready to test your knowledge?</p>
-                <button class="btn btn-primary" onclick="Classroom.takeQuiz()" style="margin-top: 12px;">
-                    <i class="fas fa-clipboard-question"></i> Take the Quiz
-                </button>
-                <button class="btn btn-secondary" onclick="App.navigate('courses')" style="margin-top: 12px; margin-left: 8px;">
-                    <i class="fas fa-book"></i> More Lessons
-                </button>
-            </div>
-        `;
-        chat.appendChild(div);
-        this.scrollToBottom();
+        const fill = document.getElementById('classroom-progress-fill');
+        if (fill) fill.style.width = `${Math.min(percent, 100)}%`;
     },
 
     takeQuiz() {

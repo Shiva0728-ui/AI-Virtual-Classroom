@@ -119,6 +119,11 @@ const Auth = {
         AppState.user = null;
         localStorage.removeItem('ai_classroom_token');
         localStorage.removeItem('ai_classroom_user');
+        
+        if (typeof JarvisHUD !== 'undefined') {
+            JarvisHUD.reset();
+        }
+        
         App.showAuthPage();
         Auth.showLogin();
     }

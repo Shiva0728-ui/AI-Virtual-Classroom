@@ -45,7 +45,32 @@ def get_current_user(
     user_id = payload.get("sub")
     if not user_id:
         raise HTTPException(status_code=401, detail="Invalid token")
+    
     user = db.query(User).filter(User.id == int(user_id)).first()
+    
+    # Dynamic Firebase fallback - Vercel instances might be missing this user
+    if not user:
+        try:
+            from firebase_client import get_all_users
+            users = get_all_users()
+            for u_data in users:
+                if u_data.get('id') == int(user_id):
+                    user = User(
+                        id=u_data.get('id'),
+                        username=u_data.get('username'),
+                        email=u_data.get('email'),
+                        password_hash=u_data.get('password_hash'),
+                        full_name=u_data.get('full_name', ''),
+                        role=u_data.get('role', 'student'),
+                        avatar=u_data.get('avatar', '🧑‍🎓'),
+                        parent_id=u_data.get('parent_id')
+                    )
+                    db.add(user)
+                    db.commit()
+                    break
+        except Exception:
+            pass
+
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
@@ -110,6 +135,31 @@ def login_user(db: Session, username: str, password: str) -> dict:
     user = db.query(User).filter(
         (User.username == username) | (User.email == username)
     ).first()
+    
+    # Dynamic Firebase fallback
+    if not user:
+        try:
+            from firebase_client import get_all_users
+            users = get_all_users()
+            for u_data in users:
+                if u_data.get('username') == username or u_data.get('email') == username:
+                    if not db.query(User).filter(User.id == u_data.get('id')).first():
+                        user = User(
+                            id=u_data.get('id'),
+                            username=u_data.get('username'),
+                            email=u_data.get('email'),
+                            password_hash=u_data.get('password_hash'),
+                            full_name=u_data.get('full_name', ''),
+                            role=u_data.get('role', 'student'),
+                            avatar=u_data.get('avatar', '🧑‍🎓'),
+                            parent_id=u_data.get('parent_id')
+                        )
+                        db.add(user)
+                        db.commit()
+                        break
+        except Exception:
+            pass
+
     if not user or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
 

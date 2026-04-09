@@ -18,6 +18,8 @@ const Voice = {
     speechQueue: [],      // Queue of text chunks to speak
     queueIndex: 0,
     selectedVoice: null,  // Cached best voice
+    wakeWordRecognition: null, // Always-on listener
+    wakeWordActive: false,
     
     // Settings
     rate: 0.92,           // Slightly slower than default for teaching
@@ -65,6 +67,31 @@ const Voice = {
                 this.listening = false;
                 this.updateMicButton();
             };
+
+            // Wake Word Recognition (Continuous)
+            this.wakeWordRecognition = new SpeechRecognition();
+            this.wakeWordRecognition.continuous = true;
+            this.wakeWordRecognition.interimResults = false;
+            this.wakeWordRecognition.lang = 'en-US';
+
+            this.wakeWordRecognition.onresult = (event) => {
+                const text = event.results[event.results.length - 1][0].transcript.toLowerCase();
+                if (text.includes('hey nova') || text.includes('hey professor')) {
+                    this.processCommand(text);
+                }
+            };
+            
+            this.wakeWordRecognition.onerror = (e) => {
+                if (e.error !== 'not-allowed') {
+                    // Restart listener silently
+                    if (this.wakeWordActive) setTimeout(() => this.enableWakeWord(), 1000);
+                }
+            };
+            
+            this.wakeWordRecognition.onend = () => {
+                // Keep it always running if enabled
+                if (this.wakeWordActive) this.enableWakeWord();
+            };
         }
 
         // Pre-select the best voice
@@ -72,6 +99,62 @@ const Voice = {
 
         // Update button state
         this._updateToggleButton();
+        
+        // Auto-start wake word if permitted previously
+        if (localStorage.getItem('nova_wakeword') === 'true') {
+            this.enableWakeWord();
+        }
+    },
+
+    // ─── Wake Word & Commands ────────────────────────────────────
+    enableWakeWord() {
+        if (!this.wakeWordRecognition) return;
+        try {
+            this.wakeWordActive = true;
+            this.wakeWordRecognition.start();
+            localStorage.setItem('nova_wakeword', 'true');
+        } catch (e) {} // Ignore if already started
+    },
+    
+    stopWakeWord() {
+        this.wakeWordActive = false;
+        if (this.wakeWordRecognition) this.wakeWordRecognition.stop();
+        localStorage.setItem('nova_wakeword', 'false');
+    },
+
+    processCommand(text) {
+        // Pause any current speech
+        this.stop();
+        
+        // Visual feedback
+        if (typeof NovaAI !== 'undefined' && !NovaAI.isOpen) {
+            NovaAI.toggle();
+        }
+        
+        if (text.includes('study today') || text.includes('what should i do')) {
+            this.speak("I've analyzed your progress. I recommend reviewing your recent Python lesson.");
+            setTimeout(() => App.navigate('dashboard'), 2000);
+        } else if (text.includes('open classroom') || text.includes('resume')) {
+            this.speak("Opening the classroom. Let's pick up where we left off.");
+            setTimeout(() => App.navigate('classroom'), 2000);
+        } else if (text.includes('how am i doing')) {
+            this.speak("You are doing exceptionally well. Keep up this momentum!");
+        } else {
+            this.speak("At your service. How can I help you learn today?");
+        }
+    },
+
+    ambientNarration(page) {
+        if (!this.enabled) return;
+        
+        switch(page) {
+            case 'dashboard':
+                this.speak("Welcome back. I have outlined your learning progress on the dashboard.");
+                break;
+            case 'courses':
+                this.speak("Here are the available courses. Would you like me to recommend one?");
+                break;
+        }
     },
 
     // ─── Voice Selection ─────────────────────────────────────────

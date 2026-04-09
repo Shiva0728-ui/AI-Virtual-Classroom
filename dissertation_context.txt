@@ -1,0 +1,106 @@
+# AI VIRTUAL CLASSROOM - DISSERTATION CONTEXT EXPORT
+
+## 1. PROJECT OVERVIEW
+**Goal:** Develop an advanced AI Virtual Classroom incorporating a proactive intelligent assistant (J.A.R.V.I.S.) and Deep Reinforcement Learning (DQN & PPO) for adaptive pedagogical sequencing.
+**Tech Stack:**
+- **Frontend:** Vanilla HTML/CSS/JS, Chart.js (for analytics), FontAwesome
+- **Backend:** Python, FastAPI, SQLAlchemy (SQLite), Uvicorn
+- **AI/ML Base:** OpenAI API (GPT-4) for Tutor responses, Deepgram API for Voice synthesis
+- **Reinforcement Learning:** PyTorch, Gymnasium
+
+## 2. CORE FEATURES
+1. **Interactive LLM Tutor:** A conversational AI tutor that guides students through dynamic lessons rather than simply giving answers.
+2. **J.A.R.V.I.S. Ambient HUD:** A proactive, holographic assistant overlay that tracks user momentum and suggests learning tasks based on backend analytics.
+3. **Gamification:** XP, Badges, Streaks, Leaderboards.
+4. **Roles:** Student (learns), Teacher (creates courses/views RL analytics), Parent (views reports).
+5. **Evaluation Dashboard:** A dedicated frontend interface charting offline RL convergence trends.
+
+## 3. DISSERTATION NOVELTY: REINFORCEMENT LEARNING PEDAGOGY
+The core academic contribution of this project is using RL to dictate the instructional state policy of the LLM. 
+Instead of the LLM deciding *how* to teach on its own, a Deep Reinforcement Learning agent analyzes the student's cognitive state and dictates the pedagogical action (e.g., "Ask a hard question" vs "Provide encouragement"). The LLM strictly follows this mandated action.
+
+### RL Implementation Details:
+- **Environment:** Custom Gymnasium `StudentEnv`
+- **State Vector:** `[topic_mastery, engagement_level, frustration_index]`
+- **Action Space (Discrete):** 
+  0: Explain Topic Detailed
+  1: Give Real-World Example
+  2: Ask Easy Question
+  3: Ask Hard Question
+  4: Provide Encouragement and Remediation
+- **Agents:** Rule-Based Baseline, Deep Q-Network (DQN) with Experience Replay, Proximal Policy Optimization (PPO) using Actor-Critic.
+- **Integration:** The backend loads offline-trained `.pth` models and injects the selected action into the LLM system prompt dynamically.
+
+---
+
+## 4. KEY CODE IMPLEMENTATIONS (For Methodologies Section)
+
+### A. Environment Setup (`backend/rl_engine/environment.py`)
+```python
+import gymnasium as gym
+from gymnasium import spaces
+import numpy as np
+
+class StudentEnv(gym.Env):
+    # Simulated Learner Environment for RL Training
+    def __init__(self):
+        super(StudentEnv, self).__init__()
+        # State: [mastery, engagement, frustration] (Normalized 0.0 to 1.0)
+        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(3,), dtype=np.float32)
+        # Action: 5 pedagogical strategies
+        self.action_space = spaces.Discrete(5)
+        self.reset()
+
+    def step(self, action):
+        reward = 0.0
+        # ... logic modifying internal state based on action ...
+        return np.array(self.state, dtype=np.float32), reward, terminated, truncated, info
+```
+
+### B. PPO Agent (`backend/rl_engine/ppo_agent.py`)
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.distributions import Categorical
+
+class ActorCritic(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super(ActorCritic, self).__init__()
+        self.actor = nn.Sequential(
+            nn.Linear(state_dim, 64), nn.ReLU(),
+            nn.Linear(64, 64), nn.ReLU(),
+            nn.Linear(64, action_dim), nn.Softmax(dim=-1)
+        )
+        self.critic = nn.Sequential(
+            nn.Linear(state_dim, 64), nn.ReLU(),
+            nn.Linear(64, 64), nn.ReLU(),
+            nn.Linear(64, 1)
+        )
+
+    def forward(self]: pass
+    def act(self, state):
+        action_probs = self.actor(state)
+        dist = Categorical(action_probs)
+        action = dist.sample()
+        return action.item(), dist.log_prob(action)
+```
+
+### C. Tutor Engine Integration (`backend/tutor_engine.py`)
+```python
+# Fetches best instructional action from RL Engine
+rl_inference = RLEngineInference()
+recommended_action_text = rl_inference.get_instructional_action(progress)
+
+# Injects RL decision into the System Prompt
+prompt = f\"\"\"You are an expert AI Tutor.
+...
+[RL SYSTEM OVERRIDE]
+The pedagogical Reinforcement Learning engine has analyzed the student's current state and mandates the following instructional action:
+>>> {recommended_action_text} <<<
+You MUST base your very next response exactly on this pedagogical strategy.
+\"\"\"
+```
+
+### D. RL Evaluation Dashboard (`frontend/js/rl-dashboard.js`)
+Fetches `training_data.json` from the backend `/api/rl/stats` and plots it using Chart.js to visually compare the cumulative reward convergence of PPO vs DQN vs a Rule-Based baseline across training episodes.
