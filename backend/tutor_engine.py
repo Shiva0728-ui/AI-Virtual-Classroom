@@ -14,6 +14,7 @@ This engine simulates a REAL teacher:
 10. Returns STRUCTURED JSON for reliable progress tracking
 """
 import json
+import os
 import re
 from openai import OpenAI
 from sqlalchemy.orm import Session
@@ -29,7 +30,21 @@ from rl_engine.rl_inference import RLEngineInference
 
 rl_engine = RLEngineInference.get_instance()
 
-client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+# Lazy OpenAI client — reads key at request time (not module import time)
+_openai_client = None
+_openai_client_key = None
+
+def _get_client():
+    """Lazily create / refresh OpenAI client, reading key from env each call."""
+    global _openai_client, _openai_client_key
+    key = os.getenv("OPENAI_API_KEY") or OPENAI_API_KEY
+    if not key or not key.strip() or key.startswith("your-"):
+        return None
+    # Recreate client if key changed
+    if key != _openai_client_key:
+        _openai_client = OpenAI(api_key=key.strip())
+        _openai_client_key = key
+    return _openai_client
 
 # ─── System Prompts ────────────────────────────────────────────
 
@@ -257,6 +272,7 @@ class TutorEngine:
     @staticmethod
     def _call_ai(messages: list, temperature: float = 0.7, max_tokens: int = 2000) -> str:
         """Call OpenAI API with messages."""
+        client = _get_client()
         if not client:
             return TutorEngine._fallback_response(messages)
         
@@ -771,7 +787,7 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
             return []
 
         # Try AI recommendations
-        if client:
+        if _get_client():
             try:
                 prompt = RECOMMENDATION_PROMPT.format(
                     completed=json.dumps([{"id": p.lesson_id, "score": p.understanding_level} for p in completed]),
@@ -858,7 +874,7 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
     @staticmethod
     def generate_course_from_topic(topic: str, detail: str = "") -> dict:
         """Generate a complete course from a topic description using AI."""
-        if not client:
+        if not _get_client():
             return TutorEngine._fallback_course(topic)
 
         user_prompt = f"Create a comprehensive course about: {topic}"
@@ -901,7 +917,7 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
     @staticmethod
     def generate_course_from_text(text_content: str, title_hint: str = "") -> dict:
         """Generate a complete course from uploaded document text using AI."""
-        if not client:
+        if not _get_client():
             return {"error": "AI not configured. Add your OpenAI API key to .env file."}
 
         # Truncate very long texts to fit token limits
