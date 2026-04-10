@@ -190,39 +190,14 @@ Return ONLY the JSON array.
 """
 
 
-COURSE_GENERATOR_PROMPT = """You are an expert course designer for an AI educational platform. 
-Create a complete, structured course on the given topic.
+COURSE_GENERATOR_PROMPT = """You are a course designer. Create a concise structured course on the given topic.
 
-REQUIREMENTS:
-- Create 5-10 well-structured lessons progressing from easy to advanced
-- Each lesson must have detailed teaching content (at least 3-4 paragraphs)
-- Include real code examples for technical topics
-- Include key concepts that the AI tutor will teach interactively
-- Add relevant YouTube search terms for each lesson
-- Make content engaging, not dry textbook material
+CREATE EXACTLY 3-4 LESSONS. Keep content brief but educational.
 
-Return a JSON object with EXACTLY this structure:
-{{
-    "title": "Course Title",
-    "description": "2-3 sentence course description",
-    "icon": "single relevant emoji",
-    "category": "Category Name",
-    "difficulty": "beginner",
-    "lessons": [
-        {{
-            "title": "Lesson Title",
-            "order_num": 1,
-            "difficulty": "beginner",
-            "estimated_minutes": 15,
-            "content": "Detailed teaching content - multiple paragraphs explaining the topic thoroughly...",
-            "key_concepts": ["concept1", "concept2", "concept3"],
-            "examples": ["example code or text 1", "example 2"],
-            "video_search": "youtube search query for this topic"
-        }}
-    ]
-}}
+Return a JSON object with EXACTLY this structure (no extra text, no markdown):
+{{"title": "Course Title", "description": "1-2 sentence description.", "icon": "emoji", "category": "Category", "difficulty": "beginner", "lessons": [{{"title": "Lesson Title", "order_num": 1, "difficulty": "beginner", "estimated_minutes": 15, "content": "2-3 paragraph explanation of the topic.", "key_concepts": ["concept1", "concept2", "concept3"], "examples": ["example1", "example2"], "video_search": "youtube search query"}}]}}
 
-Return ONLY valid JSON. No markdown, no explanation.
+Return ONLY the JSON. No markdown fences. No extra text.
 """
 
 
@@ -450,7 +425,7 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
             {"role": "user", "content": intro_prompt}
         ]
 
-        raw_response = TutorEngine._call_ai(messages, max_tokens=2500)
+        raw_response = TutorEngine._call_ai(messages, max_tokens=1000)
         parsed = TutorEngine._parse_tutor_response(raw_response)
 
         # Save conversation (store just the message text)
@@ -549,7 +524,7 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
             messages.append({"role": msg["role"], "content": msg["content"]})
         messages.append({"role": "user", "content": context})
 
-        raw_response = TutorEngine._call_ai(messages, max_tokens=2500)
+        raw_response = TutorEngine._call_ai(messages, max_tokens=1200)
         parsed = TutorEngine._parse_tutor_response(raw_response)
 
         # Save AI response
@@ -889,7 +864,7 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
         # Retry up to 2 times
         last_error = ""
         for attempt in range(2):
-            response = TutorEngine._call_ai(messages, temperature=0.7, max_tokens=4000)
+            response = TutorEngine._call_ai(messages, temperature=0.7, max_tokens=1500)
             print(f"[Course Gen] Attempt {attempt+1} raw response length: {len(response)}")
             print(f"[Course Gen] Response preview: {response[:300]}")
 
