@@ -36,10 +36,16 @@ def _get_firestore():
 
         # Parse credentials from environment variable (JSON string)
         try:
+            # Handle potential escaping issues in environment variables
+            if cred_json.startswith("'") and cred_json.endswith("'"):
+                cred_json = cred_json[1:-1]
+            if cred_json.startswith('"') and cred_json.endswith('"'):
+                cred_json = cred_json[1:-1]
+            
             cred_dict = json.loads(cred_json)
             cred = credentials.Certificate(cred_dict)
         except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Invalid FIREBASE_CREDENTIALS JSON: {e}")
+            logger.error(f"⚠️ Invalid FIREBASE_CREDENTIALS configuration: {e}")
             return None
 
         # Initialize Firebase app (only once)
@@ -241,8 +247,13 @@ def sync_collection_to_firestore(collection_name: str, records: List[Dict[str, A
         for record in records:
             doc_id = str(record.get(id_field, ""))
             if doc_id:
-                ref = db.collection(collection_name).document(doc_id)
-                batch.set(ref, record, merge=True)
+                try:
+                    # Deep copy and scrub for non-JSON types (like datetime)
+                    safe_record = json.loads(json.dumps(record, default=str))
+                    ref = db.collection(collection_name).document(doc_id)
+                    batch.set(ref, safe_record, merge=True)
+                except Exception as e:
+                    logger.error(f"Skipping record {doc_id} in {collection_name}: {e}")
         batch.commit()
         logger.info(f"✅ Synced {len(records)} records to Firestore/{collection_name}")
     except Exception as e:
