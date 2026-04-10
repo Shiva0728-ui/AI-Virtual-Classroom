@@ -1059,6 +1059,15 @@ def get_progress_overview(user: User = Depends(get_current_user), db: Session = 
 
 # ─── HELPER FUNCTIONS ────────────────────────────────────────
 
+def _award_xp(db: Session, user_id: int, amount: int, reason: str = ""):
+    """Award XP to a user."""
+    xp = db.query(UserXP).filter(UserXP.user_id == user_id).first()
+    if not xp:
+        xp = UserXP(user_id=user_id)
+        db.add(xp)
+    
+    xp.xp_total += amount
+    xp.level = max(1, xp.xp_total // 200 + 1)
     db.commit()
 
     # Sync to Firebase for persistence
