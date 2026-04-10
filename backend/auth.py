@@ -73,7 +73,61 @@ def get_current_user(
 
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    
+    # Check for XP/Progress restoration (important for Vercel/serverless cold starts)
+    _sync_user_data_from_firebase(db, user)
+    
     return user
+
+
+def _sync_user_data_from_firebase(db: Session, user: User):
+    """Deep sync XP and progress from Firebase into the local SQLite session."""
+    try:
+        from firebase_client import get_user_xp, get_all_user_progress
+        from models import UserXP, StudentProgress
+        
+        # 1. Restore XP Record
+        if not db.query(UserXP).filter(UserXP.user_id == user.id).first():
+            xp_data = get_user_xp(user.id)
+            if xp_data:
+                xp = UserXP(
+                    user_id=user.id,
+                    xp_total=xp_data.get('xp_total', 0),
+                    level=xp_data.get('level', 1),
+                    streak_days=xp_data.get('streak_days', 0),
+                    longest_streak=xp_data.get('longest_streak', 0),
+                    last_active_date=xp_data.get('last_active_date', ''),
+                    lessons_completed=xp_data.get('lessons_completed', 0),
+                    quizzes_passed=xp_data.get('quizzes_passed', 0),
+                    homework_completed=xp_data.get('homework_completed', 0)
+                )
+                db.add(xp)
+        
+        # 2. Restore Student Progress Records
+        existing_progress = {p.lesson_id for p in db.query(StudentProgress).filter(StudentProgress.user_id == user.id).all()}
+        all_progress = get_all_user_progress(user.id)
+        
+        for p_data in all_progress:
+            lesson_id = p_data.get('lesson_id')
+            if lesson_id and lesson_id not in existing_progress:
+                sp = StudentProgress(
+                    user_id=user.id,
+                    course_id=p_data.get('course_id'),
+                    lesson_id=lesson_id,
+                    status=p_data.get('status', 'not_started'),
+                    score=p_data.get('score', 0.0),
+                    understanding_level=p_data.get('understanding_level', 0.0),
+                    tutor_state=p_data.get('tutor_state', 'teaching'),
+                    current_concept_index=p_data.get('current_concept_index', 0),
+                    questions_asked=p_data.get('questions_asked', 0),
+                    correct_answers=p_data.get('correct_answers', 0)
+                )
+                db.add(sp)
+        
+        db.commit()
+    except Exception as e:
+        import logging
+        logging.error(f"Deep sync restoration failed for user {user.id}: {e}")
 
 
 def register_user(db: Session, username: str, email: str, password: str, full_name: str = "", role: str = "student", parent_id: int = None) -> User:
@@ -164,6 +218,10 @@ def login_user(db: Session, username: str, password: str) -> dict:
             fallback_err = str(e)
             import traceback
             fallback_err += traceback.format_exc()
+
+    if user:
+        # Perform deep sync restoration for found/fallback user
+        _sync_user_data_from_firebase(db, user)
 
     if not user or not verify_password(password, user.password_hash):
         raise HTTPException(status_code=401, detail=f"Invalid credentials (firebase fb error: {fallback_err})")

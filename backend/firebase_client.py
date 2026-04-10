@@ -5,6 +5,7 @@ Uses Firebase Admin SDK with Firestore.
 """
 import os
 import json
+from datetime import datetime, timezone
 import logging
 from typing import Optional, Dict, Any, List
 
@@ -159,10 +160,72 @@ def get_user_progress(user_id: int) -> List[Dict[str, Any]]:
     if not db:
         return []
     try:
-        docs = db.collection("progress").where("user_id", "==", user_id).stream()
+        # Use simple collection query
+        docs = db.collection("progress").where("user_id", "==", int(user_id)).stream()
         return [doc.to_dict() for doc in docs]
     except Exception as e:
         logger.error(f"Firestore get_user_progress error: {e}")
+        return []
+
+
+def get_all_user_progress(user_id: int) -> List[Dict[str, Any]]:
+    """Alias for get_user_progress to maintain clear naming in sync logic."""
+    return get_user_progress(user_id)
+
+
+# ─── XP Persistence ─────────────────────────────────────────────
+
+def save_user_xp(xp_data: Dict[str, Any]):
+    """Persist student XP/Level/Streak data to Firestore."""
+    db = _get_firestore()
+    if not db:
+        return
+    try:
+        doc_ref = db.collection("user_xp").document(str(xp_data.get("user_id")))
+        doc_ref.set(xp_data, merge=True)
+    except Exception as e:
+        logger.error(f"Firestore save_user_xp error: {e}")
+
+
+def get_user_xp(user_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieve XP record for a specific user."""
+    db = _get_firestore()
+    if not db:
+        return None
+    try:
+        doc = db.collection("user_xp").document(str(user_id)).get()
+        return doc.to_dict() if doc.exists else None
+    except Exception as e:
+        logger.error(f"Firestore get_user_xp error: {e}")
+        return None
+
+
+# ─── Quiz & Badge Persistence ────────────────────────────────────
+
+def save_quiz_result(quiz_data: Dict[str, Any]):
+    """Persist a quiz result record to Firestore."""
+    db = _get_firestore()
+    if not db:
+        return
+    try:
+        # Generate a unique key for the quiz result
+        key = f"quiz_{quiz_data.get('user_id')}_{int(datetime.now().timestamp())}"
+        doc_ref = db.collection("quiz_results").document(key)
+        doc_ref.set(quiz_data, merge=True)
+    except Exception as e:
+        logger.error(f"Firestore save_quiz_result error: {e}")
+
+
+def get_user_quiz_results(user_id: int) -> List[Dict[str, Any]]:
+    """Retrieve all quiz results for a user."""
+    db = _get_firestore()
+    if not db:
+        return []
+    try:
+        docs = db.collection("quiz_results").where("user_id", "==", int(user_id)).stream()
+        return [doc.to_dict() for doc in docs]
+    except Exception as e:
+        logger.error(f"Firestore get_user_quiz_results error: {e}")
         return []
 
 

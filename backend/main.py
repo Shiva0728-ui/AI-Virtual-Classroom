@@ -551,8 +551,26 @@ def start_lesson(req: TutorMessageRequest, user: User = Depends(get_current_user
     # Update streak
     _update_streak(db, user.id)
     # Award XP for starting
+    # Sync initial progress to Firebase
+    try:
+        from firebase_client import save_progress
+        save_progress({
+            "user_id": user.id,
+            "lesson_id": req.lesson_id,
+            "course_id": result.get("progress", {}).get("course_id", 0),
+            "status": "in_progress",
+            "current_concept_index": 0,
+            "questions_asked": 0,
+            "correct_answers": 0,
+            "understanding_level": 0.0,
+            "tutor_state": "teaching",
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+    except Exception as e:
+        print(f"Firebase start progress sync error: {e}")
+
     _award_xp(db, user.id, 10, "Started a lesson")
-    
+
     return result
 
 
@@ -568,6 +586,24 @@ def tutor_respond(req: TutorMessageRequest, user: User = Depends(get_current_use
     elif result.get("progress", {}).get("correct_answers", 0) > 0:
         _award_xp(db, user.id, 5, "Correct answer")
     
+    # Sync progress to Firebase
+    try:
+        from firebase_client import save_progress
+        save_progress({
+            "user_id": user.id,
+            "lesson_id": req.lesson_id,
+            "course_id": result.get("progress", {}).get("course_id", 0),
+            "status": result.get("progress", {}).get("status", "in_progress"),
+            "current_concept_index": result.get("progress", {}).get("current_concept", 0),
+            "questions_asked": result.get("progress", {}).get("questions_asked", 0),
+            "correct_answers": result.get("progress", {}).get("correct_answers", 0),
+            "understanding_level": result.get("progress", {}).get("understanding", 0.0),
+            "tutor_state": result.get("tutor_state", "teaching"),
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+    except Exception as e:
+        print(f"Firebase progress sync error: {e}")
+
     return result
 
 
@@ -579,6 +615,7 @@ def get_conversation(lesson_id: int, user: User = Depends(get_current_user), db:
         ConversationHistory.lesson_id == lesson_id,
     ).order_by(ConversationHistory.timestamp).all()
     
+
     return [{"role": m.role, "content": m.content, "type": m.message_type, 
              "timestamp": m.timestamp.isoformat()} for m in messages]
 
@@ -609,7 +646,24 @@ def submit_quiz_answer(req: QuizAnswerRequest, user: User = Depends(get_current_
     db.add(result)
     db.commit()
     
-    _award_xp(db, user.id, xp, "Quiz answer")
+    _award_xp(db, user.id, xp, "Completed a quiz question")
+    
+    # Sync quiz result to Firebase
+    try:
+        from firebase_client import save_quiz_result
+        save_quiz_result({
+            "user_id": user.id,
+            "lesson_id": req.lesson_id,
+            "question": req.question,
+            "user_answer": req.user_answer,
+            "correct_answer": req.correct_answer,
+            "is_correct": req.is_correct,
+            "xp_earned": xp,
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+    except Exception as e:
+        print(f"Firebase quiz sync error: {e}")
+        
     _check_badges(db, user.id)
     
     return {"is_correct": req.is_correct, "xp_earned": xp, "message": "Great job! ✅" if req.is_correct else "Keep trying! 💪"}
@@ -1005,15 +1059,24 @@ def get_progress_overview(user: User = Depends(get_current_user), db: Session = 
 
 # ─── HELPER FUNCTIONS ────────────────────────────────────────
 
-def _award_xp(db: Session, user_id: int, amount: int, reason: str = ""):
-    """Award XP to a user."""
-    xp = db.query(UserXP).filter(UserXP.user_id == user_id).first()
-    if not xp:
-        xp = UserXP(user_id=user_id)
-        db.add(xp)
-    xp.xp_total += amount
-    xp.level = max(1, xp.xp_total // 200 + 1)
     db.commit()
+
+    # Sync to Firebase for persistence
+    try:
+        from firebase_client import save_user_xp
+        save_user_xp({
+            "user_id": user_id,
+            "xp_total": xp.xp_total,
+            "level": xp.level,
+            "streak_days": xp.streak_days,
+            "longest_streak": xp.longest_streak,
+            "last_active_date": xp.last_active_date,
+            "lessons_completed": xp.lessons_completed,
+            "quizzes_passed": xp.quizzes_passed,
+            "homework_completed": xp.homework_completed
+        })
+    except Exception as e:
+        print(f"Firebase XP sync error: {e}")
 
 def _update_streak(db: Session, user_id: int):
     """Update daily streak."""
@@ -1037,6 +1100,20 @@ def _update_streak(db: Session, user_id: int):
     if xp.streak_days > xp.longest_streak:
         xp.longest_streak = xp.streak_days
     db.commit()
+    
+    # Sync streak to Firebase
+    try:
+        from firebase_client import save_user_xp
+        save_user_xp({
+            "user_id": user_id,
+            "xp_total": xp.xp_total,
+            "level": xp.level,
+            "streak_days": xp.streak_days,
+            "longest_streak": xp.longest_streak,
+            "last_active_date": xp.last_active_date
+        })
+    except Exception as e:
+        print(f"Firebase streak sync error: {e}")
 
 def _check_badges(db: Session, user_id: int):
     """Check and award badges based on criteria."""
