@@ -266,8 +266,13 @@ class TutorEngine:
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
+                timeout=25,  # Explicit 25s timeout
             )
-            return response.choices[0].message.content
+            content = response.choices[0].message.content
+            if not content or not content.strip():
+                print("[AI] Warning: Empty response from OpenAI")
+                return TutorEngine._fallback_response(messages)
+            return content
         except Exception as e:
             print(f"OpenAI API error: {e}")
             return TutorEngine._fallback_response(messages)
@@ -644,6 +649,71 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
         }]
 
     @staticmethod
+    def _fallback_course(topic: str) -> dict:
+        """Generate a basic demo course when AI is unavailable or times out."""
+        return {
+            "title": f"Introduction to {topic}",
+            "description": f"A foundational course covering the core concepts of {topic}. This course was auto-generated as a demo — connect your OpenAI key for fully AI-written lessons.",
+            "icon": "📘",
+            "category": "General",
+            "difficulty": "beginner",
+            "lessons": [
+                {
+                    "title": f"What is {topic}?",
+                    "order_num": 1,
+                    "difficulty": "beginner",
+                    "estimated_minutes": 15,
+                    "content": f"{topic} is an important subject with many real-world applications. In this lesson, we explore the foundational ideas and why {topic} matters. Understanding the basics helps you build a strong foundation before diving into more complex areas.",
+                    "key_concepts": [f"Definition of {topic}", "History and context", "Why it matters"],
+                    "examples": [f"Example 1: Real-world use of {topic}", f"Example 2: {topic} in everyday life"],
+                    "video_search": f"introduction to {topic} for beginners"
+                },
+                {
+                    "title": f"Core Principles of {topic}",
+                    "order_num": 2,
+                    "difficulty": "beginner",
+                    "estimated_minutes": 20,
+                    "content": f"Now that we understand what {topic} is, let's examine its core principles. These principles form the building blocks of everything else in {topic}. Mastering them gives you the tools to solve real problems.",
+                    "key_concepts": ["Principle 1", "Principle 2", "Principle 3"],
+                    "examples": [f"Applying Principle 1 in {topic}", f"Combining principles to solve problems"],
+                    "video_search": f"{topic} core concepts explained"
+                },
+                {
+                    "title": f"Practical Applications of {topic}",
+                    "order_num": 3,
+                    "difficulty": "intermediate",
+                    "estimated_minutes": 25,
+                    "content": f"This lesson bridges theory and practice. We look at how {topic} is applied in real-world scenarios. You'll learn to think critically and apply what you know to solve authentic challenges.",
+                    "key_concepts": ["Real-world use cases", "Problem-solving techniques", "Common mistakes to avoid"],
+                    "examples": [f"Case study: {topic} in industry", "Step-by-step walkthrough"],
+                    "video_search": f"{topic} practical examples tutorial"
+                },
+                {
+                    "title": f"Advanced {topic} Techniques",
+                    "order_num": 4,
+                    "difficulty": "intermediate",
+                    "estimated_minutes": 30,
+                    "content": f"Building on the fundamentals, we now explore more advanced aspects of {topic}. This is where the power of {topic} truly shines — enabling you to tackle complex, multi-step problems with confidence.",
+                    "key_concepts": ["Advanced concept 1", "Advanced concept 2", "Optimization strategies"],
+                    "examples": ["Advanced example 1", "Integration with other systems"],
+                    "video_search": f"advanced {topic} techniques"
+                },
+                {
+                    "title": f"Mastering {topic}: Review and Next Steps",
+                    "order_num": 5,
+                    "difficulty": "intermediate",
+                    "estimated_minutes": 20,
+                    "content": f"In this final lesson, we review everything covered in the course and map out a clear path forward. You now have a solid understanding of {topic} — the journey to mastery is just beginning!",
+                    "key_concepts": ["Course summary", "Self-assessment", "Resources for continued learning"],
+                    "examples": ["Putting it all together", "Building your own project"],
+                    "video_search": f"{topic} complete course summary"
+                }
+            ]
+        }
+
+
+
+    @staticmethod
     def grade_homework(topic: str, assignment: str, submission: str) -> dict:
         """Grade a homework submission."""
         prompt = HOMEWORK_GRADER_PROMPT.format(
@@ -789,7 +859,7 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
     def generate_course_from_topic(topic: str, detail: str = "") -> dict:
         """Generate a complete course from a topic description using AI."""
         if not client:
-            return {"error": "AI not configured. Add your OpenAI API key to .env file."}
+            return TutorEngine._fallback_course(topic)
 
         user_prompt = f"Create a comprehensive course about: {topic}"
         if detail:
@@ -806,6 +876,12 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
             response = TutorEngine._call_ai(messages, temperature=0.7, max_tokens=4000)
             print(f"[Course Gen] Attempt {attempt+1} raw response length: {len(response)}")
             print(f"[Course Gen] Response preview: {response[:300]}")
+
+            # If fallback response was returned (no API / empty), use demo course
+            if '"phase"' in response and '"message"' in response:
+                print("[Course Gen] Got fallback teaching response instead of course JSON - using demo course")
+                return TutorEngine._fallback_course(topic)
+
             try:
                 course_data = TutorEngine._parse_json_response(response)
                 if "title" not in course_data or "lessons" not in course_data:
@@ -818,7 +894,8 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
                 print(f"[Course Gen] Parse error on attempt {attempt+1}: {e}")
                 print(f"[Course Gen] Full response: {response}")
 
-        return {"error": f"AI generated invalid course structure after 2 attempts. Error: {last_error}"}
+        print(f"[Course Gen] All attempts failed, returning demo course.")
+        return TutorEngine._fallback_course(topic)
 
 
     @staticmethod
