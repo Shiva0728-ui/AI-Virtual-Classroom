@@ -12,7 +12,12 @@ import base64
 from openai import OpenAI
 from config import OPENAI_API_KEY, OPENAI_MODEL
 
-client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+def _get_client():
+    """Lazy initialize the OpenAI client to pick up API keys from env at request time."""
+    from config import OPENAI_API_KEY
+    if not OPENAI_API_KEY:
+        return None
+    return OpenAI(api_key=OPENAI_API_KEY)
 
 # ──────────────────────────────────────────────────────────────
 # PROMPTS
@@ -104,6 +109,7 @@ class VisualEngine:
         Generate an HTML5/CSS/JS animation that demonstrates a concept.
         Returns: {"html": "<full html>", "title": "...", "type": "animation"}
         """
+        client = _get_client()
         if not client:
             return {"error": "AI not configured. Add OpenAI API key to .env"}
 
@@ -120,13 +126,13 @@ class VisualEngine:
 
         try:
             response = client.chat.completions.create(
-                model=OPENAI_MODEL,
+                model="gpt-4o-mini",  # Use faster model for visuals on Vercel
                 messages=[
                     {"role": "system", "content": ANIMATION_GENERATOR_PROMPT},
                     {"role": "user", "content": user_prompt}
                 ],
                 temperature=0.7,
-                max_tokens=6000,
+                max_tokens=2000,
             )
             
             html_content = response.choices[0].message.content.strip()
@@ -167,6 +173,7 @@ class VisualEngine:
         Generate an educational illustration using DALL-E 3.
         Returns: {"url": "...", "title": "...", "type": "image"}
         """
+        client = _get_client()
         if not client:
             return {"error": "AI not configured. Add OpenAI API key to .env"}
 
@@ -220,39 +227,19 @@ class VisualEngine:
     def generate_concept_visual(concept: str, lesson_content: str = "", visual_type: str = "auto") -> dict:
         """
         Smart visual generation - picks the best type based on the concept.
-        visual_type: "auto", "animation", or "image"
+        Optimized for Vercel Hobby (10s limit).
         """
+        # On Vercel, always prefer quick SVG unless explicitly asked for something else
+        # This ensures we don't hit the 10s timeout
+        if visual_type == "auto":
+            return VisualEngine.generate_quick_visual(concept)
+            
         if visual_type == "image":
             return VisualEngine.generate_image(concept, lesson_content[:500])
         elif visual_type == "animation":
             return VisualEngine.generate_animation(concept, lesson_content[:500])
-        
-        # Auto mode: decide based on concept
-        # Animations work better for: physics, processes, algorithms, movements
-        # Images work better for: anatomy, geography, historical events, static diagrams
-        animation_keywords = [
-            "gravity", "motion", "force", "velocity", "acceleration", "orbit",
-            "wave", "oscillat", "pendul", "falling", "collision", "momentum",
-            "sort", "algorithm", "search", "loop", "recursi", "binary",
-            "circuit", "current", "electron", "voltage", "electric",
-            "photosynthesis", "cycle", "flow", "process", "reaction",
-            "rotation", "revolution", "spin", "vibrat", "bounc",
-            "growth", "decay", "exponential", "graph", "plot",
-            "division", "multiply", "fraction", "geometry", "angle",
-            "projectile", "trajectory", "spring", "pressure", "temperature",
-            "diffusion", "osmosis", "convection", "conduction",
-            "mitosis", "meiosis", "dna", "replication",
-            "supply", "demand", "market", "equilibrium",
-        ]
-        
-        concept_lower = concept.lower()
-        is_dynamic = any(kw in concept_lower for kw in animation_keywords)
-        
-        if is_dynamic:
-            return VisualEngine.generate_animation(concept, lesson_content[:500])
-        else:
-            # Try animation first (it's cheaper than DALL-E), fall back if needed
-            return VisualEngine.generate_animation(concept, lesson_content[:500])
+            
+        return VisualEngine.generate_quick_visual(concept)
 
     @staticmethod
     def _clean_html(html: str) -> str:
@@ -278,6 +265,7 @@ class VisualEngine:
         Returns a simple SVG string, not a full HTML page.
         Used by the tutor to embed small visuals directly in chat.
         """
+        client = _get_client()
         if not client:
             return {"error": "AI not configured"}
 
@@ -297,13 +285,13 @@ Output the raw SVG tag only. No markdown, no code fences, no explanation."""
 
         try:
             response = client.chat.completions.create(
-                model=OPENAI_MODEL,
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "You create educational SVG diagrams. Output ONLY raw SVG markup."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
-                max_tokens=2000,
+                max_tokens=1000,
             )
             
             svg = response.choices[0].message.content.strip()

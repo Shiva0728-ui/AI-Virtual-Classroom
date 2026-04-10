@@ -472,7 +472,7 @@ const Classroom = {
             const data = await api('/api/visuals/generate', {
                 method: 'POST',
                 body: { concept, context: '', visual_type: type }
-            });
+            }, 30000); // 30 second timeout for visuals
 
             if (data.type === 'animation' && data.html) {
                 // Render HTML animation in a sandboxed iframe
