@@ -756,22 +756,33 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
 
     @staticmethod
     def _parse_json_response(response: str) -> dict:
-        """Parse JSON from AI response, handling markdown code blocks."""
+        """Parse JSON from AI response, handling markdown code blocks and extra text."""
         text = response.strip()
-        if text.startswith("```"):
-            # Remove markdown code fences
-            parts = text.split("```")
-            if len(parts) >= 2:
-                text = parts[1]
-                if text.startswith("json"):
-                    text = text[4:]
-        # Try to find JSON object in text
+
+        # Strip ```json ... ``` or ``` ... ``` fences
+        import re
+        fenced = re.search(r'```(?:json)?\s*([\s\S]*?)```', text)
+        if fenced:
+            text = fenced.group(1).strip()
+
+        # Find first { and last matching }
         brace_start = text.find("{")
-        bracket_start = text.find("[")
         if brace_start >= 0:
-            text = text[brace_start:]
-        elif bracket_start >= 0:
-            text = text[bracket_start:]
+            # Walk to find matching closing brace
+            depth = 0
+            end = -1
+            for i in range(brace_start, len(text)):
+                if text[i] == "{":
+                    depth += 1
+                elif text[i] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = i
+                        break
+            if end >= 0:
+                return json.loads(text[brace_start:end + 1])
+
+        # Fallback: try the whole text
         return json.loads(text)
 
     @staticmethod
@@ -789,16 +800,26 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
             {"role": "user", "content": user_prompt}
         ]
 
-        response = TutorEngine._call_ai(messages, temperature=0.7, max_tokens=4000)
+        # Retry up to 2 times
+        last_error = ""
+        for attempt in range(2):
+            response = TutorEngine._call_ai(messages, temperature=0.7, max_tokens=4000)
+            print(f"[Course Gen] Attempt {attempt+1} raw response length: {len(response)}")
+            print(f"[Course Gen] Response preview: {response[:300]}")
+            try:
+                course_data = TutorEngine._parse_json_response(response)
+                if "title" not in course_data or "lessons" not in course_data:
+                    last_error = f"Missing required fields. Keys found: {list(course_data.keys())}"
+                    print(f"[Course Gen] Validation failed: {last_error}")
+                    continue
+                return course_data
+            except (json.JSONDecodeError, Exception) as e:
+                last_error = str(e)
+                print(f"[Course Gen] Parse error on attempt {attempt+1}: {e}")
+                print(f"[Course Gen] Full response: {response}")
 
-        try:
-            course_data = TutorEngine._parse_json_response(response)
-            # Validate required fields
-            if "title" not in course_data or "lessons" not in course_data:
-                return {"error": "AI generated invalid course structure. Please try again."}
-            return course_data
-        except (json.JSONDecodeError, Exception) as e:
-            return {"error": f"Failed to parse AI response. Please try again. ({str(e)})"}
+        return {"error": f"AI generated invalid course structure after 2 attempts. Error: {last_error}"}
+
 
     @staticmethod
     def generate_course_from_text(text_content: str, title_hint: str = "") -> dict:
@@ -816,16 +837,24 @@ RESPOND WITH THE MANDATORY JSON FORMAT."""
             prompt += f"\n\nThe user suggests the course title: {title_hint}"
 
         messages = [
-            {"role": "system", "content": "You are an expert course designer. Return valid JSON only."},
+            {"role": "system", "content": "You are an expert course designer. Return ONLY valid JSON, no other text."},
             {"role": "user", "content": prompt}
         ]
 
-        response = TutorEngine._call_ai(messages, temperature=0.5, max_tokens=4000)
+        last_error = ""
+        for attempt in range(2):
+            response = TutorEngine._call_ai(messages, temperature=0.5, max_tokens=4000)
+            print(f"[Textbook Gen] Attempt {attempt+1} raw length: {len(response)}")
+            try:
+                course_data = TutorEngine._parse_json_response(response)
+                if "title" not in course_data or "lessons" not in course_data:
+                    last_error = f"Missing fields: {list(course_data.keys())}"
+                    continue
+                return course_data
+            except (json.JSONDecodeError, Exception) as e:
+                last_error = str(e)
+                print(f"[Textbook Gen] Parse error on attempt {attempt+1}: {e}")
+                print(f"[Textbook Gen] Full response: {response}")
 
-        try:
-            course_data = TutorEngine._parse_json_response(response)
-            if "title" not in course_data or "lessons" not in course_data:
-                return {"error": "AI generated invalid course structure. Please try again."}
-            return course_data
-        except (json.JSONDecodeError, Exception) as e:
-            return {"error": f"Failed to parse AI response. Please try again. ({str(e)})"}
+        return {"error": f"AI generated invalid course structure after 2 attempts. Error: {last_error}"}
+
