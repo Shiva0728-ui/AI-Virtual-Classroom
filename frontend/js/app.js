@@ -15,18 +15,24 @@ const AppState = {
 };
 
 // ─── API Helper ───────────────────────────────────────────────
-async function api(endpoint, options = {}) {
+async function api(endpoint, options = {}, timeoutMs = 60000) {
     const headers = {
         'Content-Type': 'application/json',
         ...(AppState.token ? { 'Authorization': `Bearer ${AppState.token}` } : {}),
     };
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
     try {
         const response = await fetch(`${API_BASE}${endpoint}`, {
             ...options,
             headers: { ...headers, ...options.headers },
             body: options.body ? JSON.stringify(options.body) : undefined,
+            signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         if (response.status === 401) {
             Auth.logout();
@@ -41,6 +47,10 @@ async function api(endpoint, options = {}) {
 
         return data;
     } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error('Request timed out. The AI is taking too long — please try again.');
+        }
         if (error.message !== 'Session expired') {
             console.error('API Error:', error);
         }
