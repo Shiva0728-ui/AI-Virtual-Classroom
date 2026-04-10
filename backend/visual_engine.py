@@ -133,6 +133,7 @@ class VisualEngine:
                 ],
                 temperature=0.7,
                 max_tokens=2000,
+                timeout=55,
             )
             
             html_content = response.choices[0].message.content.strip()
@@ -187,6 +188,7 @@ class VisualEngine:
                 ],
                 temperature=0.7,
                 max_tokens=200,
+                timeout=55,
             )
             dalle_prompt = prompt_response.choices[0].message.content.strip()
         except Exception as e:
@@ -292,6 +294,7 @@ Output the raw SVG tag only. No markdown, no code fences, no explanation."""
                 ],
                 temperature=0.7,
                 max_tokens=1000,
+                timeout=55,
             )
             
             svg = response.choices[0].message.content.strip()

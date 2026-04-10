@@ -257,7 +257,7 @@ class TutorEngine:
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=25,  # Explicit 25s timeout
+                timeout=55,  # Increased to match 60s limit with 5s buffer
             )
             content = response.choices[0].message.content
             if not content or not content.strip():
